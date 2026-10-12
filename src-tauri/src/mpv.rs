@@ -817,7 +817,7 @@ pub async fn mpv_command(
 }
 
 const MPV_ALLOWED_COMMANDS: &[&str] = &[
-    "af", "seek", "stop", "frame-step", "frame-back-step", "loadfile",
+    "af", "seek", "stop", "frame-step", "frame-back-step", "loadfile", "vf", "change-list",
 ];
 
 fn mpv_property_blocked(name: &str) -> bool {

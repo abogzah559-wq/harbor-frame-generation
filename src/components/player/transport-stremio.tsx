@@ -152,6 +152,7 @@ export function TransportStremio(p: TransportStremioProps) {
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const [aspectMenuOpen, setAspectMenuOpen] = useState(false);
   const [anime4kMenuOpen, setAnime4kMenuOpen] = useState(false);
+  const [boostMenuOpen, setBoostMenuOpen] = useState(false);
   const [castModalOpen, setCastModalOpen] = useState(false);
   const [showRemaining, setShowRemaining] = useState(false);
   const [config, setConfig] = useState<PlayerChromeConfig>(() => readPlayerChromeConfig("stremio"));
@@ -162,8 +163,8 @@ export function TransportStremio(p: TransportStremioProps) {
   const controlsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    onMenuOpenChange?.(audioMenuOpen || subtitleMenuOpen || speedMenuOpen || aspectMenuOpen || anime4kMenuOpen);
-  }, [audioMenuOpen, subtitleMenuOpen, speedMenuOpen, aspectMenuOpen, anime4kMenuOpen, onMenuOpenChange]);
+    onMenuOpenChange?.(audioMenuOpen || subtitleMenuOpen || speedMenuOpen || aspectMenuOpen || anime4kMenuOpen || boostMenuOpen);
+  }, [audioMenuOpen, subtitleMenuOpen, speedMenuOpen, aspectMenuOpen, anime4kMenuOpen, boostMenuOpen, onMenuOpenChange]);
 
   useEffect(() => {
     const refresh = () => setConfig(readPlayerChromeConfig("stremio"));
@@ -231,6 +232,7 @@ export function TransportStremio(p: TransportStremioProps) {
     cropMode,
     onCropMode,
     setAnime4kMenuOpen,
+    setBoostMenuOpen,
     anime4kMode,
     onAnime4kMode,
     anime4kAvailable,

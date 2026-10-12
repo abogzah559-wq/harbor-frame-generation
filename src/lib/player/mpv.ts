@@ -141,6 +141,9 @@ export function createMpvBridge(mpvOptions?: MpvOptions): PlayerBridge {
         (prefix.includes("vapoursynth") && (level === "fatal" || level === "error"))
       ) {
         handleSvpFilterFailure();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("harbor:vapoursynth-error", { detail: text }));
+        }
       }
       return;
     }

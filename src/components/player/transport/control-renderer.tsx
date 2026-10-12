@@ -47,6 +47,7 @@ import { SeekStepBtn } from "./seek-step-btn";
 import { EpisodeNavBtn } from "./episode-nav-btn";
 import { TimeStart, TimeEnd } from "./time-display";
 import { WindowControlButtons } from "./window-control-buttons";
+import { BoostControl } from "../boost/boost-button";
 import { IdentifySongButton } from "@/components/identify-song-button";
 
 export type ControlContext = {
@@ -127,6 +128,7 @@ export type ControlContext = {
   cropMode?: string;
   onCropMode?: (id: string) => void;
   setAnime4kMenuOpen: (v: boolean) => void;
+  setBoostMenuOpen?: (v: boolean) => void;
   anime4kMode?: string;
   onAnime4kMode?: (id: string) => void;
   anime4kAvailable?: boolean;
@@ -402,6 +404,10 @@ export function renderControl(id: PlayerControlId, ctx: ControlContext): ReactNo
     case "hdr-toggle": {
       if (ctx.tight || ctx.engine === "html5") return null;
       return <HdrToggleBigBtn />;
+    }
+    case "frame-gen": {
+      if (ctx.tight || ctx.engine === "html5") return null;
+      return <BoostControl variant="default" live={!!ctx.setBoostMenuOpen} onMenuOpenChange={ctx.setBoostMenuOpen} />;
     }
     case "draw-toggle": {
       if (ctx.compact || !ctx.showDraw) return null;

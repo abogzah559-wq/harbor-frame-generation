@@ -6,7 +6,8 @@ import { useSettings } from "@/lib/settings";
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 function shadersActive(v: unknown): boolean {
-  return typeof v === "string" && v.trim().length > 0;
+  // Harbor Boost (FSR/NIS/CAS) shaders share the list; only Anime4K counts here.
+  return typeof v === "string" && v.toLowerCase().includes("anime4k");
 }
 
 export function Anime4kIndicator({ engine, chromeVisible, suppressed = false }: { engine: "html5" | "mpv"; chromeVisible: boolean; suppressed?: boolean }) {

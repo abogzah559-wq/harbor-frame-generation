@@ -1,4 +1,5 @@
 mod anime4k;
+mod boost;
 mod browser;
 mod cast;
 mod cast_hls;
@@ -386,7 +387,9 @@ pub fn run() {
         }
     }
     #[cfg(windows)]
-    svp::prime_svp_env();
+    if !boost::prime_env() {
+        svp::prime_svp_env();
+    }
     #[cfg(target_os = "linux")]
     mpv_render_linux::enforce_nvidia_x11();
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -580,6 +583,10 @@ pub fn run() {
             svp::svp_launch,
             svp::svp_ensure_running,
             svp::svp_apply,
+            boost::boost_status,
+            boost::boost_install,
+            boost::boost_framegen_script,
+            boost::boost_shader,
             settings_store::settings_read,
             settings_store::settings_write,
             proc_mem::harbor_process_memory,

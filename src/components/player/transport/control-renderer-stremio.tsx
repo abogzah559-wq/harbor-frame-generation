@@ -27,6 +27,7 @@ import { SpeedMenu } from "./speed-menu";
 import { AspectMenu } from "./aspect-menu";
 import { Anime4kMenu } from "./anime4k-menu";
 import { HdrToggleStremioBtn } from "./hdr-toggle-btn";
+import { BoostControl } from "../boost/boost-button";
 import type { Anime4kChoice } from "@/views/player/hooks/use-anime4k";
 import { DrawToggle } from "./draw-toggle";
 import { CastButton } from "./cast-button";
@@ -94,6 +95,7 @@ export type StremioRenderCtx = {
   cropMode?: string;
   onCropMode?: (id: string) => void;
   setAnime4kMenuOpen: (v: boolean) => void;
+  setBoostMenuOpen?: (v: boolean) => void;
   anime4kMode?: string;
   onAnime4kMode?: (id: string) => void;
   anime4kAvailable?: boolean;
@@ -338,6 +340,9 @@ export function RenderedStremioControl({
     case "hdr-toggle":
       if (ctx.engine === "html5") return null;
       return <HdrToggleStremioBtn />;
+    case "frame-gen":
+      if (ctx.engine === "html5") return null;
+      return <BoostControl variant="stremio" live={!!ctx.setBoostMenuOpen} onMenuOpenChange={ctx.setBoostMenuOpen} />;
     case "cast":
       return <CastButton onClick={ctx.onCast} capabilities={ctx.capabilities} />;
     case "subtitle-menu":

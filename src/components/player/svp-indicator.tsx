@@ -5,7 +5,9 @@ import { useSettings } from "@/lib/settings";
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 function hasVapoursynth(v: unknown): boolean {
-  return typeof v === "string" && v.toLowerCase().includes("vapoursynth");
+  if (typeof v !== "string") return false;
+  const low = v.toLowerCase();
+  return low.includes("vapoursynth") && !low.includes("harborfg");
 }
 
 export function SvpIndicator({

@@ -165,6 +165,7 @@ export function Transport({
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const [aspectMenuOpen, setAspectMenuOpen] = useState(false);
   const [anime4kMenuOpen, setAnime4kMenuOpen] = useState(false);
+  const [boostMenuOpen, setBoostMenuOpen] = useState(false);
   const [castModalOpen, setCastModalOpen] = useState(false);
   const [chromeConfig, setChromeConfig] = useState<PlayerChromeConfig>(() =>
     readPlayerChromeConfig("default"),
@@ -178,8 +179,8 @@ export function Transport({
   const [compact, setCompact] = useState(false);
   const [tight, setTight] = useState(false);
   useEffect(() => {
-    onMenuOpenChange?.(audioMenuOpen || subtitleMenuOpen || speedMenuOpen || aspectMenuOpen || anime4kMenuOpen);
-  }, [audioMenuOpen, subtitleMenuOpen, speedMenuOpen, aspectMenuOpen, anime4kMenuOpen, onMenuOpenChange]);
+    onMenuOpenChange?.(audioMenuOpen || subtitleMenuOpen || speedMenuOpen || aspectMenuOpen || anime4kMenuOpen || boostMenuOpen);
+  }, [audioMenuOpen, subtitleMenuOpen, speedMenuOpen, aspectMenuOpen, anime4kMenuOpen, boostMenuOpen, onMenuOpenChange]);
   useEffect(() => {
     const refresh = () => setChromeConfig(readPlayerChromeConfig("default"));
     const onStorage = (e: StorageEvent) => {
@@ -399,6 +400,7 @@ export function Transport({
     cropMode,
     onCropMode,
     setAnime4kMenuOpen,
+    setBoostMenuOpen,
     anime4kMode,
     onAnime4kMode,
     anime4kAvailable,

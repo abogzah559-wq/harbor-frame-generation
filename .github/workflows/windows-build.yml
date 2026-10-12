@@ -1,0 +1,59 @@
+name: windows-build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, frame-gen]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            harbor-core
+            src-tauri
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Fetch libmpv
+        run: pnpm run setup:libmpv
+
+      - name: Fetch external binaries
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          cd src-tauri/binaries
+          T=x86_64-pc-windows-msvc
+          curl -L "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -o "yt-dlp-$T.exe"
+          curl -L "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -o ffmpeg.zip
+          unzip -j ffmpeg.zip "*/bin/ffmpeg.exe" "*/bin/ffprobe.exe"
+          mv ffmpeg.exe "ffmpeg-$T.exe"
+          mv ffprobe.exe "ffprobe-$T.exe"
+
+      - name: Tauri build
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: harbor-windows-framegen
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          retention-days: 14
