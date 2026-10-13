@@ -47,7 +47,13 @@ jobs:
           mv ffprobe.exe "ffprobe-$T.exe"
 
       - name: Tauri build
-        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis 2>&1 | tee build.log || {
+            grep -nE '^(error|warning: unused)|^error\[|-->|^\s+\|' build.log | grep -B1 -A3 -E '^[0-9]+:error' | head -60 | while IFS= read -r l; do echo "::error::$l"; done
+            exit 1
+          }
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
