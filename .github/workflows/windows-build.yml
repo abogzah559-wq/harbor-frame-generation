@@ -17,6 +17,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
+          cache-on-failure: true
           workspaces: |
             harbor-core
             src-tauri
@@ -48,10 +49,15 @@ jobs:
 
       - name: Tauri build
         shell: bash
+        env:
+          CARGO_TERM_COLOR: never
+          NO_COLOR: "1"
         run: |
           set -o pipefail
           pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis 2>&1 | tee build.log || {
-            msg=$(grep -nE -A12 '^error(\[E[0-9]+\])?:' build.log | head -150 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            sed -r 's/\x1B\[[0-9;]*[A-Za-z]//g' build.log > clean.log
+            { grep -nE -A14 '(^|\s)error(\[E[0-9]+\])?:' clean.log | head -160; echo '----- tail -----'; tail -40 clean.log; } > err.txt
+            msg=$(sed 's/%/%25/g' err.txt | awk '{printf "%s%%0A", $0}')
             echo "::error title=build::${msg}"
             exit 1
           }
