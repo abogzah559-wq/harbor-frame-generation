@@ -181,6 +181,7 @@ async function readPos(): Promise<number> {
  *  jump back to where the viewer was if mpv restarts from the top. */
 async function guardPosition() {
   const pos = await readPos();
+  console.warn("[boost] guard", { pos, lastPos, fresh: Date.now() - lastPosAt });
   // Fall back to the watchdog's reading only if it is fresh (same episode).
   const keep = pos > 0 ? pos : Date.now() - lastPosAt < 4000 ? lastPos : 0;
   (window as { __harborBoostQuietUntil?: number }).__harborBoostQuietUntil = Date.now() + 15_000;
@@ -189,6 +190,7 @@ async function guardPosition() {
     window.setTimeout(async () => {
       const now = await readPos();
       if (now + 8 < keep) {
+        console.warn("[boost] restoring position", { now, keep });
         await mpvCmd(["seek", keep, "absolute", "exact"]).catch(() => {});
       }
     }, delay);

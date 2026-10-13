@@ -7,6 +7,7 @@ import { ModalOverlayApp } from "@/views/modal-overlay-app";
 import { HdrOverlayApp } from "@/views/hdr-overlay-app";
 import { PipApp } from "@/views/pip";
 import "@/index.css";
+import { installDiagLog } from "@/lib/diag-log";
 
 function detectPipMode(): boolean {
   if (new URLSearchParams(window.location.search).get("pip") === "1") return true;
@@ -36,6 +37,7 @@ function detectHdrOverlay(): boolean {
 }
 
 const isPip = detectPipMode();
+if (!isPip) installDiagLog();
 const isModal = detectModalOverlay();
 const isHdrOverlay = detectHdrOverlay();
 if (isModal || isHdrOverlay) {

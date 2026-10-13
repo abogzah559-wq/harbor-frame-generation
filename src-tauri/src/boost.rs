@@ -545,6 +545,23 @@ fn replace_define(src: &str, name: &str, value: &str) -> String {
         .join("\n")
 }
 
+/// Append diagnostic lines (player/boost events) to boost\player-log.txt.
+#[tauri::command]
+pub fn boost_log(lines: Vec<String>) {
+    let Some(r) = root() else { return };
+    let _ = std::fs::create_dir_all(&r);
+    let path = r.join("player-log.txt");
+    if std::fs::metadata(&path).map(|m| m.len() > 2_000_000).unwrap_or(false) {
+        let _ = std::fs::rename(&path, r.join("player-log.old.txt"));
+    }
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        for l in lines {
+            let _ = writeln!(f, "{}", l);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

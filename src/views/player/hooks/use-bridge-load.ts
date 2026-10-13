@@ -88,6 +88,7 @@ export function useBridgeLoad(params: {
       const finishedNearEnd =
         resolved.finished || (durationMs > 0 && startMs / durationMs >= RESTART_THRESHOLD);
       const startSec = (!resumePlaybackRef.current || finishedNearEnd ? 0 : startMs) / 1000;
+      console.warn("[resume] load", { id: src.meta.id, season, episode, startMs, fromRemote: resolved.fromRemote, finished: resolved.finished, finishedNearEnd, resumePlayback: resumePlaybackRef.current, attempt: src.attempt ?? 0, isFirstLoad, startFromZero: !!src.startFromZero, url: playUrl.slice(0, 80) });
       const guestInRoom = inRoomRef.current && !isHostRef.current;
       const eligibleForPrompt =
         isFirstLoad &&

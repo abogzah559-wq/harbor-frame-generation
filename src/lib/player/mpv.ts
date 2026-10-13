@@ -236,6 +236,7 @@ export function createMpvBridge(mpvOptions?: MpvOptions): PlayerBridge {
       emit();
     } else if (raw.event === "end-file") {
       const reason = (raw as { reason?: string }).reason?.toLowerCase();
+      console.warn("[mpv] end-file", reason ?? "", "pos", snap.positionSec);
       if (reason === "stop" || reason === "quit" || reason === "redirect") return;
       if (Date.now() < suppressEndFileUntil) return;
       // Harbor Boost swaps video filters live; a reinit is not a playback failure.
@@ -315,6 +316,7 @@ export function createMpvBridge(mpvOptions?: MpvOptions): PlayerBridge {
             const startAt =
               typeof src.startAtSec === "number" && src.startAtSec > 0 ? src.startAtSec : 0;
             const cmd: Array<string | number> = ["loadfile", src.url, "replace", 0, `start=${startAt}`];
+            console.warn("[mpv] loadfile start=", startAt);
             await invoke("mpv_command", { cmd });
             for (const s of src.subtitles ?? []) {
               try {
@@ -435,6 +437,7 @@ export function createMpvBridge(mpvOptions?: MpvOptions): PlayerBridge {
       invoke("mpv_set_property", { name: "pause", value: true }).catch(() => {});
     },
     seek(sec) {
+      console.warn("[mpv] seek", sec, "from", snap.positionSec, new Error().stack?.split("\n").slice(2, 5).join(" | "));
       snap.subText = "";
       snap.subStartSec = 0;
       emit();
