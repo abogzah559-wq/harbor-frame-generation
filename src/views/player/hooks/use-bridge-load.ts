@@ -217,7 +217,10 @@ async function resolveStartMs(
       if (remoteMs > local) saveResumeMs(metaId, remoteMs, season, episode);
       return { ms: remoteMs, fromRemote: true, finished };
     }
-    return { ms: local, fromRemote: false, finished };
+    // The local spot is further along than Stremio's: judge "finished" by the
+    // local spot, not by Stremio's watched flag (which would restart from 0).
+    const localFinished = isEpisode && remoteDuration > 0 && local / remoteDuration >= RESTART_THRESHOLD;
+    return { ms: local, fromRemote: false, finished: localFinished };
   }
   return { ms: local, fromRemote: false, finished: false };
 }
