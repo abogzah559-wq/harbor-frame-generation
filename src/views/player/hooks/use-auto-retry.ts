@@ -109,6 +109,11 @@ export function useAutoRetry(params: {
   const triggerAutoRetry = useCallback(
     (reason: string) => {
       if (autoRetriedRef.current) return;
+      // Harbor Boost is (re)building its video filters: a short gap in frames is expected.
+      if (Date.now() < ((window as { __harborBoostQuietUntil?: number }).__harborBoostQuietUntil ?? 0)) {
+        console.warn(`[player] boost filter change in progress: ignoring auto-retry (${reason})`);
+        return;
+      }
       if (isLocal) {
         console.warn(`[player] local file: skipping auto-retry (${reason})`);
         return;

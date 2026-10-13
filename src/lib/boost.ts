@@ -183,7 +183,7 @@ async function guardPosition() {
   const pos = await readPos();
   // Fall back to the watchdog's reading only if it is fresh (same episode).
   const keep = pos > 0 ? pos : Date.now() - lastPosAt < 4000 ? lastPos : 0;
-  (window as { __harborBoostQuietUntil?: number }).__harborBoostQuietUntil = Date.now() + 6000;
+  (window as { __harborBoostQuietUntil?: number }).__harborBoostQuietUntil = Date.now() + 15_000;
   if (keep < 5) return;
   for (const delay of [800, 2000, 4000, 7000]) {
     window.setTimeout(async () => {
@@ -407,26 +407,43 @@ export function boostAttach(): () => void {
     appliedVf = null;
   };
   window.addEventListener("harbor:vapoursynth-error", onVsError);
+  let ready = !state.on;
   const id = window.setInterval(() => {
     void readPos().then((p) => {
       lastPos = p;
       lastPosAt = Date.now();
+      if (p > 0.5) ready = true;
     });
-    if (state.on && !state.busy) void runSync();
+    // The watchdog only re-applies once playback is under way (see above).
+    if (ready && state.on && !state.busy && startTimer == null) void runSync();
   }, 2500);
+  let startTimer: number | null = null;
   if (state.on) {
-    // Remembered from the previous episode: re-apply once mpv is up.
-    window.setTimeout(() => {
-      if (state.on && !state.busy) {
+    // Remembered from the previous episode: wait until the episode is really
+    // playing (first frames shown, resume seek done) before adding filters,
+    // otherwise Harbor's "no video yet" watchdog would switch streams.
+    const started = Date.now();
+    const waitForPlayback = async () => {
+      startTimer = null;
+      if (!state.on) return;
+      const w = Number(await invoke("mpv_get_property", { name: "width" }).catch(() => 0)) || 0;
+      const pos = await readPos();
+      if ((w > 0 && pos > 0.5) || Date.now() - started > 60_000) {
+        if (state.busy) return;
+        (window as { __harborBoostQuietUntil?: number }).__harborBoostQuietUntil = Date.now() + 15_000;
         void ensureInstalled(state.config.profile)
           .then(() => runSync())
           .catch((e) => setState({ on: false, error: errText(e) }));
+        return;
       }
-    }, 800);
+      startTimer = window.setTimeout(() => void waitForPlayback(), 1000);
+    };
+    startTimer = window.setTimeout(() => void waitForPlayback(), 1500);
   }
   return () => {
     window.removeEventListener("harbor:vapoursynth-error", onVsError);
     window.clearInterval(id);
+    if (startTimer != null) window.clearTimeout(startTimer);
     appliedShader = null;
     appliedVf = null;
     appliedSmooth = false;
