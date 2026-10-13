@@ -16,6 +16,30 @@ export type MpvProbe = {
   error: string | null;
 };
 
+
+// Subtitle downloads: many results come from the same host, so space the
+// requests out and back off for a minute when a host answers 429.
+const subHostCooldown = new Map<string, number>();
+const subHostLast = new Map<string, number>();
+function subHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
+}
+function subHostBlocked(host: string): boolean {
+  const until = subHostCooldown.get(host);
+  return until != null && Date.now() < until;
+}
+async function subHostSpacing(host: string): Promise<void> {
+  const gap = 400;
+  const last = subHostLast.get(host) ?? 0;
+  const wait = last + gap - Date.now();
+  subHostLast.set(host, Math.max(Date.now(), last + gap));
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+}
+
 export async function probeMpv(): Promise<MpvProbe> {
   try {
     return await invoke<MpvProbe>("mpv_probe");
@@ -112,6 +136,8 @@ export function createMpvBridge(mpvOptions?: MpvOptions): PlayerBridge {
   let geomResizeObserver: ResizeObserver | null = null;
   let geomTauriUnlisten: Array<() => void> = [];
   let mpvStarted = false;
+  /** Set by destroy(): late callers (e.g. subtitle autoload) must stop here. */
+  let destroyed = false;
   let suppressEndFileUntil = 0;
   let svpFilterFailed = false;
   const urlByExternalFilename = new Map<string, string>();
@@ -503,14 +529,32 @@ export function createMpvBridge(mpvOptions?: MpvOptions): PlayerBridge {
       invoke("mpv_set_property", { name: "glsl-shaders", value: shaders.filter(Boolean).join(sep) }).catch(() => {});
     },
     async addSubtitle(url, lang, title, select): Promise<boolean> {
+      if (destroyed) return false;
       let mpvUrl = url;
       if (/^https?:/i.test(url)) {
+        const host = subHost(url);
+        if (subHostBlocked(host)) return false;
+        await subHostSpacing(host);
+        if (destroyed) return false;
         try {
           mpvUrl = await invoke<string>("sub_download", { url });
         } catch (e) {
+          const msg = String(e);
+          if (/status 429/.test(msg)) {
+            // Rate limited: back off from this host instead of hammering it.
+            subHostCooldown.set(host, Date.now() + 60_000);
+            console.warn("[mpv] sub_download rate-limited, pausing host for 60s", host);
+            return false;
+          }
+          if (/status [45]\d\d/.test(msg)) {
+            // mpv fetching the same URL would get the same HTTP error.
+            console.warn("[mpv] sub_download failed", msg);
+            return false;
+          }
           console.warn("[mpv] sub_download failed, falling back to URL", e);
         }
       }
+      if (destroyed) return false;
       urlByExternalFilename.set(mpvUrl, url);
       try {
         await invoke("mpv_sub_add", {
@@ -589,6 +633,7 @@ export function createMpvBridge(mpvOptions?: MpvOptions): PlayerBridge {
       };
     },
     destroy() {
+      destroyed = true;
       if (geomTimer != null) {
         window.clearInterval(geomTimer);
         geomTimer = null;

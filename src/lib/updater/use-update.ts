@@ -206,7 +206,7 @@ export function clearStagedUpdate(): void {
 
 let started = false;
 export function startUpdateWatcher(): void {
-  if (started || !IS_TAURI) return;
+  if (started || !IS_TAURI || __IS_FORK_BUILD__) return;
   started = true;
   void checkForUpdate(false);
   window.setInterval(() => void checkForUpdate(false), CHECK_INTERVAL_MS);

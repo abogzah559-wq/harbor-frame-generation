@@ -395,6 +395,9 @@ pub struct FrameGenOpts {
     scene_detect: bool,
     gpu_id: i32,
     gpu_threads: u32,
+    /// Largest height RIFE works at (0 = source size). 4K is scaled down to
+    /// this before interpolation and mpv scales the result back up.
+    max_height: u32,
 }
 
 impl Default for FrameGenOpts {
@@ -408,6 +411,7 @@ impl Default for FrameGenOpts {
             scene_detect: true,
             gpu_id: -1,
             gpu_threads: 2,
+            max_height: 0,
         }
     }
 }
@@ -444,7 +448,12 @@ else:
         matrix = "709"
     else:
         matrix = "170m"
-    rgb = core.resize.Bicubic(clip, format=vs.RGBS, matrix_in_s=matrix)
+    mh = __MAXH__
+    if mh > 0 and clip.height > mh:
+        w = int(round(clip.width * mh / clip.height / 2)) * 2
+        rgb = core.resize.Spline36(clip, width=w, height=mh, format=vs.RGBS, matrix_in_s=matrix)
+    else:
+        rgb = core.resize.Bicubic(clip, format=vs.RGBS, matrix_in_s=matrix)
     use_sc = False
     if __SC__:
         try:
@@ -453,7 +462,7 @@ else:
             use_sc = True
         except Exception:
             use_sc = False
-    uhd = __UHD__ or clip.width > 2560
+    uhd = __UHD__ or rgb.width > 2560
     kw = dict(model=__MODEL__, factor_num=fr.numerator, factor_den=fr.denominator,
               gpu_thread=__THREADS__, uhd=uhd, sc=use_sc)
     if __GPU__ >= 0:
@@ -491,7 +500,8 @@ pub fn boost_framegen_script(opts: FrameGenOpts) -> Result<String, String> {
         .replace("__UHD__", if opts.flow_scale < 75 { "True" } else { "False" })
         .replace("__MODEL__", &m.1.to_string())
         .replace("__THREADS__", &opts.gpu_threads.clamp(1, 8).to_string())
-        .replace("__GPU__", &opts.gpu_id.clamp(-1, 16).to_string());
+        .replace("__GPU__", &opts.gpu_id.clamp(-1, 16).to_string())
+        .replace("__MAXH__", &max_height(opts.max_height).to_string());
     let dir = r.join("scripts");
     std::fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
     // Unique name per setting so mpv reloads the filter when options change.
@@ -504,6 +514,15 @@ pub fn boost_framegen_script(opts: FrameGenOpts) -> Result<String, String> {
         std::fs::write(&path, script).map_err(|e| format!("write script: {e}"))?;
     }
     Ok(path.to_string_lossy().into_owned())
+}
+
+/// Only sensible caps reach the script: 0 (source size) or an even height >= 480.
+fn max_height(h: u32) -> u32 {
+    if h == 0 {
+        0
+    } else {
+        (h.clamp(480, 4320) / 2) * 2
+    }
 }
 
 /// Return a shader path for `kind` (FSR | NIS | CAS) with sharpness 0..10 baked in.
@@ -583,7 +602,16 @@ mod tests {
             .replace("__UHD__", "False")
             .replace("__MODEL__", "23")
             .replace("__THREADS__", "2")
-            .replace("__GPU__", "-1");
+            .replace("__GPU__", "-1")
+            .replace("__MAXH__", "1440");
         assert!(!s.contains("__"));
+    }
+
+    #[test]
+    fn max_height_is_sane() {
+        assert_eq!(max_height(0), 0);
+        assert_eq!(max_height(1440), 1440);
+        assert_eq!(max_height(1081), 1080);
+        assert_eq!(max_height(100), 480);
     }
 }

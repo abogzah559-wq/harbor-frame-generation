@@ -1,4 +1,4 @@
-import { Download, RotateCcw, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, ChevronDown, Download, Minus, Plus, RotateCcw, Sparkles, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
@@ -7,53 +7,47 @@ import {
   DEFAULT_BOOST_CONFIG,
   boostSaveConfig,
   boostStatus,
+  boostWorkingHeight,
   useBoost,
   type BoostConfig,
   type BoostProfile,
   type BoostStatus,
 } from "@/lib/boost";
 
-// Look & feel copied from Lossless Scaling's own (WinUI/Fluent dark) window.
-const C = {
-  page: "#2b2b2b",
-  card: "#373737",
-  cardEdge: "#3f3f3f",
-  field: "#3d3d3d",
-  fieldHover: "#454545",
-  fieldEdge: "#4a4a4a",
-  text: "#ffffff",
-  sub: "#cfcfcf",
-  accent: "#a39ff5",
-};
+/*
+ * Boost settings, drawn with Harbor's own tokens (canvas / elevated / edge /
+ * ink / accent) so it follows the active theme and reads right-to-left in
+ * Arabic. Every visible string goes through t().
+ */
 
-type Opt<V extends string | number> = { value: V; label: string };
+type T = (key: string, vars?: Record<string, string | number>) => string;
+type Opt<V extends string | number> = { value: V; label: string; hint?: string };
 
-function Card({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
-    <section
-      className="rounded-lg px-4 pb-4 pt-3"
-      style={{ background: C.card, border: `1px solid ${C.cardEdge}` }}
-    >
-      <h3 className="mb-3 text-[19px] font-semibold" style={{ color: C.text }}>
-        {title}
-      </h3>
-      <div className="flex flex-col gap-2.5">{children}</div>
+    <section className="flex flex-col gap-3 rounded-2xl border border-edge-soft bg-canvas/40 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-subtle">{title}</h3>
+        {aside}
+      </div>
+      {children}
     </section>
   );
 }
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex min-h-[36px] items-center justify-between gap-4">
-      <span className="text-[14px] font-semibold" style={{ color: C.text }}>
-        {label}
-      </span>
-      <div className="flex w-[200px] shrink-0 justify-end">{children}</div>
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[13.5px] font-medium text-ink">{label}</span>
+        {hint && <span className="text-[12px] leading-snug text-ink-muted">{hint}</span>}
+      </div>
+      {children}
     </div>
   );
 }
 
-function Select<V extends string | number>({
+function Pills<V extends string | number>({
   value,
   options,
   onChange,
@@ -63,164 +57,136 @@ function Select<V extends string | number>({
   onChange: (v: V) => void;
 }) {
   return (
-    <div className="relative w-full">
-      <select
-        value={String(value)}
-        onChange={(e) => {
-          const raw = e.target.value;
-          const hit = options.find((o) => String(o.value) === raw);
-          if (hit) onChange(hit.value);
-        }}
-        className="h-9 w-full cursor-pointer appearance-none truncate rounded-[5px] pe-8 ps-3 text-[14px] outline-none transition-colors"
-        style={{ background: C.field, border: `1px solid ${C.fieldEdge}`, color: C.text }}
-      >
-        {options.map((o) => (
-          <option key={String(o.value)} value={String(o.value)} style={{ background: C.field }}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown
-        size={15}
-        className="pointer-events-none absolute end-2.5 top-1/2 -translate-y-1/2"
-        style={{ color: C.sub }}
-      />
+    <div className="flex w-fit max-w-full flex-wrap gap-1 rounded-2xl bg-elevated/50 p-1 ring-1 ring-edge-soft/60">
+      {options.map((o) => (
+        <button
+          key={String(o.value)}
+          type="button"
+          onClick={() => onChange(o.value)}
+          title={o.hint}
+          className={`rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${
+            value === o.value ? "bg-ink text-canvas" : "text-ink-muted hover:bg-raised hover:text-ink"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
 
-function Spin({
-  value,
-  min,
-  max,
-  step = 1,
-  onChange,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  onChange: (v: number) => void;
-}) {
-  const [text, setText] = useState(String(value));
-  useEffect(() => setText(String(value)), [value]);
-  const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n / step) * step));
-  const commit = (s: string) => {
-    const n = Number(s);
-    if (Number.isFinite(n)) onChange(Number(clamp(n).toFixed(2)));
-    else setText(String(value));
-  };
-  return (
-    <div
-      className="flex h-9 w-full items-center rounded-[5px]"
-      style={{ background: C.field, border: `1px solid ${C.fieldEdge}` }}
-    >
-      <input
-        value={text}
-        inputMode="decimal"
-        onChange={(e) => setText(e.target.value)}
-        onBlur={(e) => commit(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") commit((e.target as HTMLInputElement).value);
-          e.stopPropagation();
-        }}
-        className="h-full min-w-0 flex-1 bg-transparent px-3 text-[14px] outline-none"
-        style={{ color: C.text }}
-      />
-      <button
-        type="button"
-        onClick={() => onChange(Number(clamp(value + step).toFixed(2)))}
-        className="flex h-full w-8 items-center justify-center hover:bg-white/5"
-        style={{ color: C.sub }}
-        aria-label="+"
-      >
-        <ChevronUp size={15} />
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange(Number(clamp(value - step).toFixed(2)))}
-        className="flex h-full w-8 items-center justify-center hover:bg-white/5"
-        style={{ color: C.sub }}
-        aria-label="-"
-      >
-        <ChevronDown size={15} />
-      </button>
-    </div>
-  );
-}
-
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+function Switch({ label, hint, on, onChange }: { label: string; hint?: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
       onClick={() => onChange(!on)}
-      className="flex items-center gap-3"
+      className="flex items-center justify-between gap-4 rounded-xl px-1 py-1 text-start"
     >
-      <span
-        className="relative inline-block h-5 w-10 rounded-full transition-colors"
-        style={{
-          background: on ? C.accent : "transparent",
-          border: on ? `1px solid ${C.accent}` : "1px solid #cfcfcf",
-        }}
-      >
-        <span
-          className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full transition-all"
-          style={{ background: on ? "#000" : "#cfcfcf", left: on ? 23 : 3 }}
-        />
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-[13.5px] font-medium text-ink">{label}</span>
+        {hint && <span className="text-[12px] leading-snug text-ink-muted">{hint}</span>}
       </span>
-      <span className="w-7 text-start text-[14px]" style={{ color: C.text }}>
-        {on ? "On" : "Off"}
+      <span aria-hidden className={`relative h-6 w-10 shrink-0 rounded-full transition-colors ${on ? "bg-ink" : "bg-edge"}`}>
+        <span
+          className={`absolute start-[2px] top-0.5 h-5 w-5 rounded-full bg-canvas transition-transform ${
+            on ? "translate-x-4 rtl:-translate-x-4" : "translate-x-0"
+          }`}
+        />
       </span>
     </button>
   );
 }
 
-function Slider({
+function Stepper({
   value,
   min,
   max,
   step = 1,
+  suffix,
   onChange,
 }: {
   value: number;
   min: number;
   max: number;
   step?: number;
+  suffix?: string;
   onChange: (v: number) => void;
 }) {
-  const pct = ((value - min) / (max - min)) * 100;
+  const clamp = (n: number) => Math.min(max, Math.max(min, n));
   return (
-    <div className="flex w-full items-center gap-2" title={String(value)}>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="ls-range h-1 w-full cursor-pointer appearance-none rounded-full"
-        style={{ background: `linear-gradient(to right, ${C.accent} ${pct}%, #9a9a9a ${pct}%)` }}
-      />
-      <span className="w-8 text-end text-[12px] tabular-nums" style={{ color: C.sub }}>
+    <div className="flex h-10 w-fit items-center gap-1 rounded-full bg-elevated/50 p-1 ring-1 ring-edge-soft/60">
+      <button
+        type="button"
+        onClick={() => onChange(clamp(value - step))}
+        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted hover:bg-raised hover:text-ink"
+        aria-label="-"
+      >
+        <Minus size={14} />
+      </button>
+      <span className="min-w-[64px] text-center text-[13px] font-semibold tabular-nums text-ink">
         {value}
+        {suffix}
       </span>
+      <button
+        type="button"
+        onClick={() => onChange(clamp(value + step))}
+        className="flex h-8 w-8 items-center justify-center rounded-full text-ink-muted hover:bg-raised hover:text-ink"
+        aria-label="+"
+      >
+        <Plus size={14} />
+      </button>
     </div>
   );
 }
 
-const FRAME_GEN: Opt<BoostProfile["frameGeneration"]>[] = [
-  { value: "Off", label: "Off" },
-  { value: "RIFE", label: "RIFE (AI)" },
-  { value: "Smooth", label: "Smooth (blend)" },
-];
-const SCALING: Opt<BoostProfile["scalingType"]>[] = [
-  { value: "Off", label: "Off" },
-  { value: "FSR", label: "FSR" },
-  { value: "NIS", label: "NIS" },
-  { value: "CAS", label: "CAS" },
-];
+function Range({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (v: number) => void }) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <div className="flex items-center gap-3">
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={1}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="hb-range h-1.5 w-full cursor-pointer appearance-none rounded-full"
+        style={{
+          background: `linear-gradient(to var(--hb-dir, right), var(--color-accent) ${pct}%, var(--color-edge) ${pct}%)`,
+        }}
+      />
+      <span className="w-6 text-end text-[12.5px] font-semibold tabular-nums text-ink-muted">{value}</span>
+    </div>
+  );
+}
+
+function ModelList({ value, onChange, t }: { value: BoostProfile["model"]; onChange: (v: BoostProfile["model"]) => void; t: T }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {BOOST_MODELS.map((m) => {
+        const active = m.id === value;
+        return (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => onChange(m.id)}
+            className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-start transition-colors ${
+              active ? "border-accent bg-accent-soft" : "border-edge-soft hover:border-edge hover:bg-raised/40"
+            }`}
+          >
+            <span className="flex min-w-0 flex-col">
+              <span className="text-[13px] font-semibold text-ink">{m.label}</span>
+              <span className="text-[11.5px] text-ink-muted">{t(m.note)}</span>
+            </span>
+            {active && <Check size={15} className="shrink-0 text-accent" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function mb(n: number) {
   return `${(n / 1048576).toFixed(1)} MB`;
@@ -228,10 +194,11 @@ function mb(n: number) {
 
 export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
   const t = useT();
-  const { config: saved, error, progress } = useBoost();
+  const { config: saved, error, notice, progress } = useBoost();
   const [cfg, setCfg] = useState<BoostConfig>(saved);
   const [status, setStatus] = useState<BoostStatus | null>(null);
   const [saving, setSaving] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
   const p = cfg.profile;
   const set = (patch: Partial<BoostProfile>) => setCfg((c) => ({ ...c, profile: { ...c.profile, ...patch } }));
 
@@ -261,11 +228,51 @@ export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
     ((p.scalingType !== "Off" && !status.shaders) ||
       (p.frameGeneration === "RIFE" && (!status.runtime || !status.rife || !status.models.includes(p.model))));
 
+  const fgOptions: Opt<BoostProfile["frameGeneration"]>[] = [
+    { value: "Off", label: t("Off") },
+    { value: "RIFE", label: t("AI (RIFE)") },
+    { value: "Smooth", label: t("Smooth") },
+  ];
+  const fgHint =
+    p.frameGeneration === "RIFE"
+      ? t("Creates new in-between frames with AI. Smoothest, needs a capable GPU.")
+      : p.frameGeneration === "Smooth"
+        ? t("Blends frames to your screen's refresh rate. Very light, works on any GPU.")
+        : t("Frame generation is off. Upscaling can still be used.");
+
+  const resOptions: Opt<BoostProfile["procRes"]>[] = [
+    { value: "auto", label: t("Auto") },
+    { value: "native", label: t("Source") },
+    { value: "1440", label: "1440p" },
+    { value: "1080", label: "1080p" },
+  ];
+  const working = boostWorkingHeight(p);
+  const resHint =
+    p.procRes === "auto"
+      ? t("Full quality, and steps down to 1440p or 1080p by itself if your GPU can't keep up (useful for 4K).")
+      : p.procRes === "native"
+        ? t("Always works at the video's own size. 4K needs a very strong GPU.")
+        : t("Larger videos are scaled down before frame generation, then upscaled back to your screen.");
+
+  const scaleOptions: Opt<BoostProfile["scalingType"]>[] = [
+    { value: "Off", label: t("Off") },
+    { value: "FSR", label: "FSR" },
+    { value: "NIS", label: "NIS" },
+    { value: "CAS", label: "CAS" },
+  ];
+
   const host = (typeof document !== "undefined" && (document.fullscreenElement as HTMLElement | null)) || document.body;
+
+  const components: Array<{ label: string; ok: boolean; show: boolean }> = [
+    { label: t("Upscaling shaders"), ok: !!status?.shaders, show: true },
+    { label: t("VapourSynth runtime"), ok: !!status?.runtime, show: true },
+    { label: t("RIFE engine"), ok: !!status?.rife, show: true },
+    { label: t("Model {m}", { m: p.model }), ok: !!status?.models.includes(p.model), show: p.frameGeneration === "RIFE" },
+  ];
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[2147483000] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -273,190 +280,226 @@ export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
       onKeyUp={(e) => e.stopPropagation()}
     >
       <style>{`
-        .ls-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:9999px;background:${C.accent};border:5px solid #454545;box-shadow:0 0 0 1px #555}
-        .ls-scroll::-webkit-scrollbar{width:8px}.ls-scroll::-webkit-scrollbar-thumb{background:#555;border-radius:8px}
+        .hb-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:9999px;background:var(--color-ink);border:3px solid var(--color-accent)}
+        [dir="rtl"] .hb-range{--hb-dir:left}
+        .hb-scroll::-webkit-scrollbar{width:8px}.hb-scroll::-webkit-scrollbar-thumb{background:var(--color-edge);border-radius:8px}
       `}</style>
-      <div
-        dir="ltr"
-        className="flex max-h-[92vh] w-[980px] max-w-full flex-col overflow-hidden rounded-xl shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)]"
-        style={{ background: C.page, border: `1px solid ${C.cardEdge}`, fontFamily: "'Segoe UI Variable','Segoe UI',system-ui,sans-serif" }}
-      >
-        <div className="flex items-center gap-3 px-5 py-3" style={{ borderBottom: `1px solid ${C.cardEdge}` }}>
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-md text-[12px] font-black"
-            style={{ background: C.accent, color: "#000" }}
-          >
-            FG
-          </div>
+      <div className="flex max-h-[92vh] w-[620px] max-w-full flex-col overflow-hidden rounded-[28px] border border-edge bg-elevated text-ink shadow-[0_30px_80px_-20px_rgba(0,0,0,0.85)]">
+        <header className="flex items-center gap-3 px-5 pb-3 pt-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+            <Sparkles size={19} />
+          </span>
           <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-semibold text-white">{t("Frame Generation & Scaling")}</div>
-            <div className="truncate text-[12px]" style={{ color: C.sub }}>
-              {t("Runs inside Harbor's player. No other program needed.")}
-            </div>
+            <h2 className="text-[16px] font-semibold text-ink">{t("Harbor Boost")}</h2>
+            <p className="truncate text-[12.5px] text-ink-muted">{t("Runs inside Harbor's player. No other program needed.")}</p>
           </div>
           <button
             type="button"
             onClick={() => setCfg(DEFAULT_BOOST_CONFIG)}
-            className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] text-white/85 hover:bg-white/10"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-ink-muted hover:bg-raised hover:text-ink"
             title={t("Reset to defaults")}
+            aria-label={t("Reset to defaults")}
           >
-            <RotateCcw size={14} />
+            <RotateCcw size={15} />
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-white/85 hover:bg-white/10"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-ink-muted hover:bg-raised hover:text-ink"
             aria-label={t("Close")}
           >
             <X size={18} />
           </button>
-        </div>
+        </header>
 
-        <div className="ls-scroll grid flex-1 grid-cols-1 gap-3 overflow-y-auto p-4 md:grid-cols-2">
-          <div className="flex flex-col gap-3">
-            <Card title="Frame Generation">
-              <Row label="Type">
-                <Select value={p.frameGeneration} options={FRAME_GEN} onChange={(v) => set({ frameGeneration: v })} />
-              </Row>
-              {p.frameGeneration === "RIFE" && (
-                <>
-                  <Row label="Model">
-                    <Select
-                      value={p.model}
-                      options={BOOST_MODELS.map((m) => ({ value: m.id, label: `${m.label} · ${m.note}` }))}
-                      onChange={(v) => set({ model: v })}
-                    />
-                  </Row>
-                  <Row label="Mode">
-                    <Select
+        <div className="hb-scroll flex flex-1 flex-col gap-3 overflow-y-auto px-5 pb-4">
+          <Section title={t("Frame generation")}>
+            <Field label={t("Type")} hint={fgHint}>
+              <Pills value={p.frameGeneration} options={fgOptions} onChange={(v) => set({ frameGeneration: v })} />
+            </Field>
+
+            {p.frameGeneration === "RIFE" && (
+              <>
+                <Field label={t("Model")}>
+                  <ModelList value={p.model} onChange={(v) => set({ model: v })} t={t} />
+                </Field>
+
+                <Field
+                  label={t("Output")}
+                  hint={
+                    p.fgMode === "adaptive"
+                      ? t("Adaptive: target 0 follows your screen's refresh rate (capped at it).")
+                      : t("Tip: X2 on a 24 fps episode gives 48 fps. Higher needs a strong GPU.")
+                  }
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Pills
                       value={p.fgMode}
                       options={[
-                        { value: "fixed", label: "Fixed" },
-                        { value: "adaptive", label: "Adaptive" },
+                        { value: "fixed", label: t("Multiplier") },
+                        { value: "adaptive", label: t("Target FPS") },
                       ]}
                       onChange={(v) => set({ fgMode: v })}
                     />
-                  </Row>
-                  {p.fgMode === "fixed" ? (
-                    <Row label="Multiplier">
-                      <Select
+                    {p.fgMode === "fixed" ? (
+                      <Pills
                         value={p.multiplier}
                         options={[
-                          { value: 2, label: "X2" },
-                          { value: 3, label: "X3" },
-                          { value: 4, label: "X4" },
+                          { value: 2, label: "×2" },
+                          { value: 3, label: "×3" },
+                          { value: 4, label: "×4" },
                         ]}
                         onChange={(v) => set({ multiplier: v })}
                       />
-                    </Row>
-                  ) : (
-                    <Row label="Target">
-                      <Spin value={p.target} min={0} max={240} onChange={(v) => set({ target: v })} />
-                    </Row>
-                  )}
-                  <Row label="Flow scale">
-                    <Slider value={p.flowScale} min={25} max={100} step={25} onChange={(v) => set({ flowScale: v })} />
-                  </Row>
-                  <Row label="Scene detection">
-                    <Toggle on={p.sceneDetect} onChange={(v) => set({ sceneDetect: v })} />
-                  </Row>
-                  <p className="text-[12px] leading-snug" style={{ color: C.sub }}>
-                    {p.fgMode === "adaptive"
-                      ? t("Adaptive: target 0 follows your screen's refresh rate (capped at it).")
-                      : t("Tip: X2 on a 24 fps episode gives 48 fps. Higher needs a strong GPU.")}
-                  </p>
+                    ) : (
+                      <Stepper value={p.target} min={0} max={240} step={6} suffix=" fps" onChange={(v) => set({ target: v })} />
+                    )}
+                  </div>
+                </Field>
+
+                <Field
+                  label={t("Processing resolution")}
+                  hint={
+                    <>
+                      {resHint}
+                      {working > 0 && (
+                        <span className="ms-1 font-semibold text-ink">{t("Now: {h}p", { h: working })}</span>
+                      )}
+                    </>
+                  }
+                >
+                  <Pills value={p.procRes} options={resOptions} onChange={(v) => set({ procRes: v })} />
+                </Field>
+
+                <div className="flex flex-col gap-1 border-t border-edge-soft pt-2">
+                  <Switch
+                    label={t("Scene detection")}
+                    hint={t("Skips blending across hard cuts, so scene changes stay clean.")}
+                    on={p.sceneDetect}
+                    onChange={(v) => set({ sceneDetect: v })}
+                  />
+                  <Switch
+                    label={t("Faster motion estimation")}
+                    hint={t("Estimates motion at half resolution. Lighter, slightly less precise.")}
+                    on={p.flowScale < 75}
+                    onChange={(v) => set({ flowScale: v ? 50 : 100 })}
+                  />
+                </div>
+              </>
+            )}
+          </Section>
+
+          <Section title={t("Upscaling")}>
+            <Field label={t("Type")} hint={t("Sharpens the picture when it is scaled up to your screen.")}>
+              <Pills value={p.scalingType} options={scaleOptions} onChange={(v) => set({ scalingType: v })} />
+            </Field>
+            {p.scalingType !== "Off" && (
+              <Field label={t("Sharpness")}>
+                <Range value={p.sharpness} min={0} max={10} onChange={(v) => set({ sharpness: v })} />
+              </Field>
+            )}
+          </Section>
+
+          <Section title={t("General")}>
+            <Switch
+              label={t("Stay on for the next episodes")}
+              on={cfg.remember}
+              onChange={(v) => setCfg((c) => ({ ...c, remember: v }))}
+            />
+          </Section>
+
+          {p.frameGeneration === "RIFE" && (
+            <Section
+              title={t("Advanced")}
+              aside={
+                <button
+                  type="button"
+                  onClick={() => setAdvanced((v) => !v)}
+                  className="flex items-center gap-1 rounded-full px-2 py-1 text-[12px] font-semibold text-ink-muted hover:bg-raised hover:text-ink"
+                >
+                  {advanced ? t("Hide") : t("Show")}
+                  <ChevronDown size={14} className={`transition-transform ${advanced ? "rotate-180" : ""}`} />
+                </button>
+              }
+            >
+              {advanced && (
+                <>
+                  <Field label={t("Graphics card")} hint={t("Auto picks the dedicated GPU. Change it only if frame generation runs on the wrong one.")}>
+                    <Pills
+                      value={p.gpuId}
+                      options={[
+                        { value: -1, label: t("Auto") },
+                        { value: 0, label: "GPU 0" },
+                        { value: 1, label: "GPU 1" },
+                        { value: 2, label: "GPU 2" },
+                      ]}
+                      onChange={(v) => set({ gpuId: v })}
+                    />
+                  </Field>
+                  <Field label={t("GPU threads")}>
+                    <Stepper value={p.gpuThreads} min={1} max={4} onChange={(v) => set({ gpuThreads: v })} />
+                  </Field>
                 </>
               )}
-              {p.frameGeneration === "Smooth" && (
-                <p className="text-[12px] leading-snug" style={{ color: C.sub }}>
-                  {t("Blends frames to your screen's refresh rate. Very light, works on any GPU.")}
-                </p>
-              )}
-            </Card>
+            </Section>
+          )}
 
-            {p.frameGeneration === "RIFE" && (
-              <Card title="GPU">
-                <Row label="Preferred GPU">
-                  <Select
-                    value={p.gpuId}
-                    options={[
-                      { value: -1, label: "Auto" },
-                      { value: 0, label: "GPU 0" },
-                      { value: 1, label: "GPU 1" },
-                      { value: 2, label: "GPU 2" },
-                    ]}
-                    onChange={(v) => set({ gpuId: v })}
+          <Section title={t("Components")}>
+            <div className="flex flex-wrap gap-1.5">
+              {components
+                .filter((c) => c.show)
+                .map((c) => (
+                  <span
+                    key={c.label}
+                    className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium ring-1 ${
+                      c.ok ? "text-success ring-success/35" : "text-ink-muted ring-edge-soft"
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${c.ok ? "bg-success" : "bg-ink-subtle"}`} />
+                    {c.label}
+                    <span className="text-ink-subtle">· {c.ok ? t("Ready") : t("Not downloaded")}</span>
+                  </span>
+                ))}
+            </div>
+            {progress ? (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex justify-between text-[12px] text-ink-muted">
+                  <span>
+                    {t("Downloading")} {progress.step}…
+                  </span>
+                  <span className="tabular-nums">
+                    {progress.total ? `${mb(progress.done)} / ${mb(progress.total)}` : mb(progress.done)}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-edge-soft">
+                  <div
+                    className="h-full rounded-full bg-accent transition-[width]"
+                    style={{ width: progress.total ? `${Math.min(100, (progress.done / progress.total) * 100)}%` : "30%" }}
                   />
-                </Row>
-                <Row label="GPU threads">
-                  <Spin value={p.gpuThreads} min={1} max={4} onChange={(v) => set({ gpuThreads: v })} />
-                </Row>
-              </Card>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <Card title="Scaling">
-              <Row label="Type">
-                <Select value={p.scalingType} options={SCALING} onChange={(v) => set({ scalingType: v })} />
-              </Row>
-              {p.scalingType !== "Off" && (
-                <Row label="Sharpness">
-                  <Slider value={p.sharpness} min={0} max={10} onChange={(v) => set({ sharpness: v })} />
-                </Row>
-              )}
-            </Card>
-
-            <Card title="Behavior">
-              <Row label={t("Stay on for the next episodes")}>
-                <Toggle on={cfg.remember} onChange={(v) => setCfg((c) => ({ ...c, remember: v }))} />
-              </Row>
-            </Card>
-
-            <Card title="Components">
-              <StatusLine label="Upscaling shaders" ok={!!status?.shaders} />
-              <StatusLine label="VapourSynth runtime" ok={!!status?.runtime} />
-              <StatusLine label="RIFE engine" ok={!!status?.rife} />
-              <StatusLine label={`Model ${p.model}`} ok={!!status?.models.includes(p.model)} />
-              {progress ? (
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex justify-between text-[12px]" style={{ color: C.sub }}>
-                    <span>
-                      {t("Downloading")} {progress.step}…
-                    </span>
-                    <span>{progress.total ? `${mb(progress.done)} / ${mb(progress.total)}` : mb(progress.done)}</span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full transition-[width]"
-                      style={{
-                        background: C.accent,
-                        width: progress.total ? `${Math.min(100, (progress.done / progress.total) * 100)}%` : "30%",
-                      }}
-                    />
-                  </div>
                 </div>
-              ) : needsDownload ? (
-                <div className="flex items-center gap-2 text-[12px]" style={{ color: C.sub }}>
-                  <Download size={14} />
-                  {p.frameGeneration === "RIFE"
-                    ? t("About 60 MB downloads once, the first time you turn it on.")
-                    : t("A small download happens once, the first time you turn it on.")}
-                </div>
-              ) : null}
-            </Card>
-          </div>
+              </div>
+            ) : needsDownload ? (
+              <div className="flex items-center gap-2 text-[12px] text-ink-muted">
+                <Download size={14} />
+                {p.frameGeneration === "RIFE"
+                  ? t("About 60 MB downloads once, the first time you turn it on.")
+                  : t("A small download happens once, the first time you turn it on.")}
+              </div>
+            ) : null}
+          </Section>
         </div>
 
-        <div className="flex items-center gap-3 px-5 py-3" style={{ borderTop: `1px solid ${C.cardEdge}` }}>
-          <div className="min-w-0 flex-1 truncate text-[12px]" style={{ color: error ? "#ff9b9b" : C.sub }} title={error ?? ""}>
-            {error ?? (status?.primeError ? status.primeError : "")}
+        <footer className="flex items-center gap-2 border-t border-edge-soft px-5 py-3">
+          <div
+            className={`min-w-0 flex-1 truncate text-[12px] ${error ? "text-danger" : "text-ink-muted"}`}
+            title={error ?? notice ?? ""}
+          >
+            {error ?? status?.primeError ?? notice ?? ""}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="h-9 rounded-[5px] px-4 text-[14px] text-white hover:brightness-125"
-            style={{ background: C.field, border: `1px solid ${C.fieldEdge}` }}
+            className="h-9 rounded-full px-4 text-[13px] font-semibold text-ink-muted hover:bg-raised hover:text-ink"
           >
             {t("Cancel")}
           </button>
@@ -464,25 +507,13 @@ export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={save}
             disabled={saving}
-            className="h-9 rounded-[5px] px-5 text-[14px] font-semibold text-black hover:brightness-110 disabled:opacity-60"
-            style={{ background: C.accent }}
+            className="h-9 rounded-full bg-ink px-5 text-[13px] font-semibold text-canvas transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {saving ? t("Applying…") : t("Save")}
           </button>
-        </div>
+        </footer>
       </div>
     </div>,
     host,
-  );
-}
-
-function StatusLine({ label, ok }: { label: string; ok: boolean }) {
-  return (
-    <div className="flex items-center justify-between text-[13px]">
-      <span style={{ color: C.text }}>{label}</span>
-      <span className="font-semibold" style={{ color: ok ? "#9be29b" : C.sub }}>
-        {ok ? "Ready" : "Not downloaded"}
-      </span>
-    </div>
   );
 }

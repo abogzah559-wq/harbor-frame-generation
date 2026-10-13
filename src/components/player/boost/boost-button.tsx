@@ -1,10 +1,11 @@
-import { Loader2, Settings2 } from "lucide-react";
+import { Loader2, Settings2, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { useSettings } from "@/lib/settings";
 import {
   boostAttach,
   boostClearError,
+  boostClearNotice,
   boostSetHost,
   boostSupported,
   boostToggle,
@@ -12,25 +13,6 @@ import {
 } from "@/lib/boost";
 import { Tooltip } from "../transport/tooltip";
 import { BoostSettingsModal } from "./boost-settings-modal";
-
-function FgIcon({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="2.5" y="4" width="19" height="16" rx="3.5" stroke="currentColor" strokeWidth="1.8" />
-      <text
-        x="12"
-        y="15.6"
-        textAnchor="middle"
-        fontSize="9"
-        fontWeight="800"
-        fill="currentColor"
-        fontFamily="Segoe UI, system-ui, sans-serif"
-      >
-        FG
-      </text>
-    </svg>
-  );
-}
 
 /**
  * Player-bar control: click toggles frame generation + upscaling inside
@@ -48,7 +30,7 @@ export function BoostControl({
 }) {
   const t = useT();
   const { settings } = useSettings();
-  const { on, busy, error, progress } = useBoost();
+  const { on, busy, error, notice, progress } = useBoost();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const errTimer = useRef<number | null>(null);
 
@@ -73,6 +55,12 @@ export function BoostControl({
       if (errTimer.current) window.clearTimeout(errTimer.current);
     };
   }, [error]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const id = window.setTimeout(() => boostClearNotice(), 9000);
+    return () => window.clearTimeout(id);
+  }, [notice]);
 
   if (live && !boostSupported()) return null;
 
@@ -105,19 +93,19 @@ export function BoostControl({
       } ${
         on
           ? big
-            ? "bg-white/[0.08] text-[#b9b4ff]"
-            : "bg-white/22 text-[#c9c5ff] hover:bg-white/30"
+            ? "bg-white/[0.08] text-accent"
+            : "bg-white/22 text-accent hover:bg-white/30"
           : big
             ? "text-white/90 hover:bg-white/[0.05]"
             : "text-white/85 hover:bg-white/10 hover:text-white"
       }`}
     >
-      {busy ? <Loader2 size={iconSize - 2} className="animate-spin" /> : <FgIcon size={iconSize} />}
+      {busy ? <Loader2 size={iconSize - 2} className="animate-spin" /> : <Sparkles size={iconSize - 2} />}
       {busy && pct != null && (
         <span className="absolute bottom-1 text-[9px] font-bold tabular-nums text-white/90">{pct}%</span>
       )}
       {on && !busy && (
-        <span className="absolute bottom-2 end-1.5 h-1.5 w-1.5 rounded-full bg-[#a39ff5] shadow-[0_0_6px_#a39ff5]" />
+        <span className="absolute bottom-2 end-1.5 h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_6px_var(--color-accent)]" />
       )}
     </button>
   );
@@ -146,6 +134,15 @@ export function BoostControl({
           className="pointer-events-auto absolute bottom-[calc(100%+10px)] end-0 w-[320px] cursor-pointer rounded-xl border border-red-400/30 bg-black/85 px-3 py-2 text-[12.5px] leading-snug text-red-200 shadow-xl backdrop-blur-md"
         >
           {error}
+        </div>
+      )}
+      {notice && !error && (
+        <div
+          role="status"
+          onClick={() => boostClearNotice()}
+          className="pointer-events-auto absolute bottom-[calc(100%+10px)] end-0 w-[320px] cursor-pointer rounded-xl border border-white/15 bg-black/85 px-3 py-2 text-[12.5px] leading-snug text-white/90 shadow-xl backdrop-blur-md"
+        >
+          {notice}
         </div>
       )}
       {settingsOpen && <BoostSettingsModal onClose={() => setSettingsOpen(false)} />}

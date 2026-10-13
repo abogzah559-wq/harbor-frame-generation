@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useSyncExternalStore } from "react";
 import { isWindowsDesktop } from "@/lib/platform";
+import { t } from "@/lib/i18n";
 
 /**
  * Harbor Boost — frame generation (RIFE through VapourSynth inside mpv) and
@@ -10,6 +11,10 @@ import { isWindowsDesktop } from "@/lib/platform";
  */
 
 export type BoostModel = "4.6" | "4.22-lite" | "4.25-lite" | "4.26";
+
+/** Height RIFE works at. "auto" = source size, stepping down to 1440p / 1080p
+ *  by itself when the GPU can't keep up (mpv starts dropping frames). */
+export type BoostProcRes = "auto" | "native" | "1440" | "1080";
 
 export type BoostProfile = {
   frameGeneration: "Off" | "RIFE" | "Smooth";
@@ -21,6 +26,7 @@ export type BoostProfile = {
   sceneDetect: boolean;
   gpuId: number;
   gpuThreads: number;
+  procRes: BoostProcRes;
   scalingType: "Off" | "FSR" | "NIS" | "CAS";
   sharpness: number;
 };
@@ -41,6 +47,7 @@ export const DEFAULT_BOOST_PROFILE: BoostProfile = {
   sceneDetect: true,
   gpuId: -1,
   gpuThreads: 2,
+  procRes: "auto",
   scalingType: "FSR",
   sharpness: 9,
 };
@@ -75,6 +82,8 @@ type State = {
   busy: boolean;
   progress: BoostProgress | null;
   error: string | null;
+  /** Neutral, non-error message (e.g. "now processing at 1440p"). */
+  notice: string | null;
 };
 
 const STORAGE_KEY = "harbor.boost.v1";
@@ -103,7 +112,14 @@ function loadOn(cfg: BoostConfig): boolean {
 }
 
 const initialConfig = load();
-let state: State = { config: initialConfig, on: loadOn(initialConfig), busy: false, progress: null, error: null };
+let state: State = {
+  config: initialConfig,
+  on: loadOn(initialConfig),
+  busy: false,
+  progress: null,
+  error: null,
+  notice: null,
+};
 const listeners = new Set<() => void>();
 
 function setState(patch: Partial<State>) {
@@ -198,6 +214,48 @@ async function guardPosition() {
 }
 
 // ---------------------------------------------------------------------------
+// Processing resolution (auto step-down for 4K on mid-range GPUs)
+// ---------------------------------------------------------------------------
+
+const CAP_KEY = "harbor.boost.autocap.v1";
+const AUTO_STEPS = [1440, 1080];
+
+function loadCaps(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(CAP_KEY);
+    const v = raw ? (JSON.parse(raw) as unknown) : null;
+    return v && typeof v === "object" ? (v as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+let autoCaps: Record<string, number> = loadCaps();
+function saveCaps() {
+  try {
+    localStorage.setItem(CAP_KEY, JSON.stringify(autoCaps));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Height of the video being played (before any filter). */
+let srcHeight = 0;
+
+/** 0 = RIFE works at the source size. */
+function capFor(p: BoostProfile): number {
+  if (p.procRes === "1440") return 1440;
+  if (p.procRes === "1080") return 1080;
+  if (p.procRes === "native") return 0;
+  return srcHeight > 0 ? autoCaps[String(srcHeight)] ?? 0 : 0;
+}
+
+/** Effective height RIFE ends up working at (for display / logs). */
+export function boostWorkingHeight(p: BoostProfile = state.config.profile): number {
+  const cap = capFor(p);
+  return cap > 0 && srcHeight > cap ? cap : srcHeight;
+}
+
+// ---------------------------------------------------------------------------
 // mpv application
 // ---------------------------------------------------------------------------
 
@@ -206,6 +264,9 @@ let appliedShader: string | null = null;
 let appliedVf: string | null = null;
 let appliedSmooth = false;
 let fgFailed = false;
+let vfAppliedAt = 0;
+let lag: { at: number; drops: number; bad: number } | null = null;
+let gaveUpNotice = false;
 
 const mpvSet = (name: string, value: unknown) => invoke("mpv_set_property", { name, value });
 const norm = (v: string) => v.replace(/\\\\/g, "/").replace(/\\/g, "/").toLowerCase();
@@ -252,6 +313,7 @@ async function wantedVf(p: BoostProfile): Promise<string | null> {
       sceneDetect: p.sceneDetect,
       gpuId: p.gpuId,
       gpuThreads: p.gpuThreads,
+      maxHeight: capFor(p),
     },
   });
   return path.replace(/\\/g, "/");
@@ -264,6 +326,8 @@ async function sync(): Promise<void> {
     return;
   }
   const p = state.config.profile;
+  const h = Number(await invoke("mpv_get_property", { name: "height" }).catch(() => 0)) || 0;
+  if (h > 0) srcHeight = h;
 
   const shader = await wantedShader(p);
   const curShaders = await mpvGet("glsl-shaders");
@@ -285,6 +349,18 @@ async function sync(): Promise<void> {
       await hwdecForFg();
       await mpvCmd(["vf", "add", `${VF_LABEL}:vapoursynth=[${vf}]`]);
       appliedVf = vf;
+      vfAppliedAt = Date.now();
+      lag = null;
+      console.warn("[boost] apply", {
+        model: p.model,
+        mode: p.fgMode,
+        multiplier: p.multiplier,
+        target: p.target,
+        procRes: p.procRes,
+        srcHeight,
+        workHeight: boostWorkingHeight(p),
+        gpuId: p.gpuId,
+      });
     }
   } else if (appliedVf || vfPresent) {
     await guardPosition();
@@ -305,6 +381,58 @@ async function sync(): Promise<void> {
       await mpvSet("video-sync", "audio").catch(() => {});
     }
     appliedSmooth = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Lag monitor: when RIFE can't keep up, mpv drops frames / drifts from audio.
+// In "auto" we then lower the processing resolution one step at a time.
+// ---------------------------------------------------------------------------
+
+async function numProp(name: string): Promise<number> {
+  const v = await invoke("mpv_get_property", { name }).catch(() => null);
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+async function checkLag() {
+  const p = state.config.profile;
+  if (!state.on || state.busy || p.frameGeneration !== "RIFE" || p.procRes !== "auto" || !appliedVf) {
+    lag = null;
+    return;
+  }
+  // Give the filter time to warm up after (re)loading.
+  if (Date.now() - vfAppliedAt < 8000 || (await mpvGet("pause")) === "yes") {
+    lag = null;
+    return;
+  }
+  if (srcHeight <= 0) return;
+  const drops = await numProp("frame-drop-count");
+  if (!Number.isFinite(drops)) return;
+  const avsync = Math.abs(await numProp("avsync"));
+  const now = Date.now();
+  if (!lag) {
+    lag = { at: now, drops, bad: 0 };
+    return;
+  }
+  const dt = Math.max(0.5, (now - lag.at) / 1000);
+  const rate = (drops - lag.drops) / dt;
+  const lagging = rate > 2 || (Number.isFinite(avsync) && avsync > 0.3);
+  lag = { at: now, drops, bad: lagging ? lag.bad + 1 : 0 };
+  if (lag.bad < 3) return;
+  lag = null;
+
+  const cur = boostWorkingHeight(p);
+  const next = AUTO_STEPS.find((s) => s < cur);
+  console.warn("[boost] lagging", { rate: Number(rate.toFixed(1)), avsync, srcHeight, cur, next: next ?? null });
+  if (next && srcHeight > 0) {
+    autoCaps[String(srcHeight)] = next;
+    saveCaps();
+    setState({ notice: t("Your GPU couldn't keep up, so frame generation now works at {h}p.", { h: next }) });
+    await runSync();
+  } else if (!gaveUpNotice) {
+    gaveUpNotice = true;
+    setState({ notice: t("Your GPU still can't keep up. Try the RIFE 4.6 model with X2.") });
   }
 }
 
@@ -370,7 +498,11 @@ export async function boostSaveConfig(config: BoostConfig): Promise<void> {
     /* ignore */
   }
   fgFailed = false;
-  setState({ config, error: null });
+  // New settings may be lighter: let "auto" try the full resolution again.
+  autoCaps = {};
+  saveCaps();
+  gaveUpNotice = false;
+  setState({ config, error: null, notice: null });
   if (!config.remember) persistOn(false);
   if (state.on && boostSupported()) {
     setState({ busy: true });
@@ -389,6 +521,10 @@ export function boostClearError() {
   setState({ error: null });
 }
 
+export function boostClearNotice() {
+  setState({ notice: null });
+}
+
 /** Called by the player control while mounted: keeps mpv in sync across episode
  *  changes / player restarts, and reacts to VapourSynth failures. */
 export function boostAttach(): () => void {
@@ -399,6 +535,9 @@ export function boostAttach(): () => void {
   appliedShader = null;
   appliedVf = null;
   appliedSmooth = false;
+  srcHeight = 0;
+  lag = null;
+  gaveUpNotice = false;
   const onVsError = (e: Event) => {
     if (!state.on || state.config.profile.frameGeneration !== "RIFE" || fgFailed) return;
     fgFailed = true;
@@ -417,7 +556,9 @@ export function boostAttach(): () => void {
       if (p > 0.5) ready = true;
     });
     // The watchdog only re-applies once playback is under way (see above).
-    if (ready && state.on && !state.busy && startTimer == null) void runSync();
+    if (ready && state.on && !state.busy && startTimer == null) {
+      void runSync().then(() => checkLag());
+    }
   }, 2500);
   let startTimer: number | null = null;
   if (state.on) {

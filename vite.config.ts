@@ -11,6 +11,9 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __IS_BETA_BUILD__: JSON.stringify(process.env.HARBOR_CHANNEL !== "stable"),
+    // Community builds (frame-gen fork): don't auto-install official updates,
+    // they would replace this build and remove Boost. Manual checks still work.
+    __IS_FORK_BUILD__: JSON.stringify(process.env.HARBOR_FORK_BUILD === "1"),
   },
   server: {
     port: 1420,

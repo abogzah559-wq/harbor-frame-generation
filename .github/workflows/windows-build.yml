@@ -4,10 +4,17 @@ on:
   workflow_dispatch:
   push:
     branches: [main, frame-gen]
+    # Pushing a tag like "boost-2" also publishes a public GitHub Release.
+    tags: ["boost-*"]
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      HARBOR_FORK_BUILD: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -83,3 +90,11 @@ jobs:
           name: harbor-windows-framegen
           path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
           retention-days: 14
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/boost-')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Harbor Boost ${{ github.ref_name }}
+          body_path: docs/BOOST.md
+          files: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
