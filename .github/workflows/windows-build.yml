@@ -51,7 +51,8 @@ jobs:
         run: |
           set -o pipefail
           pnpm tauri build --target x86_64-pc-windows-msvc --bundles nsis 2>&1 | tee build.log || {
-            grep -nE '^(error|warning: unused)|^error\[|-->|^\s+\|' build.log | grep -B1 -A3 -E '^[0-9]+:error' | head -60 | while IFS= read -r l; do echo "::error::$l"; done
+            msg=$(grep -nE -A12 '^error(\[E[0-9]+\])?:' build.log | head -150 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=build::${msg}"
             exit 1
           }
 
