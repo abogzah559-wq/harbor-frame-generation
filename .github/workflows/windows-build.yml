@@ -35,6 +35,21 @@ jobs:
       - name: Fetch libmpv
         run: pnpm run setup:libmpv
 
+      - name: Fetch fonts
+        run: pnpm run setup:fonts
+
+      - name: Fetch mpv.exe
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p src-tauri/binaries
+          gh release download 20260610 -R shinchiro/mpv-winbuild-cmake -p "mpv-x86_64-2026*" -O mpv.7z || \
+            gh release download -R shinchiro/mpv-winbuild-cmake -p "mpv-x86_64-2*" -O mpv.7z
+          7z x -y mpv.7z -ompv-bin > /dev/null
+          cp "$(find mpv-bin -name mpv.exe | head -1)" src-tauri/binaries/mpv-x86_64-pc-windows-msvc.exe
+          rm -rf mpv.7z mpv-bin
+
       - name: Fetch external binaries
         shell: bash
         run: |
