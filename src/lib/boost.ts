@@ -157,6 +157,44 @@ function hostHwdec(): string {
   return host.hwdec === "on" ? "yes" : host.hwdec === "off" ? "no" : "auto-copy";
 }
 
+/** Only touch hwdec when the user's mode can't feed VapourSynth (avoids a decoder reinit). */
+async function hwdecForFg() {
+  if (host.hwdec === "on") await mpvSet("hwdec", "auto-copy").catch(() => {});
+}
+async function hwdecRestore() {
+  if (host.hwdec === "on") await mpvSet("hwdec", hostHwdec()).catch(() => {});
+}
+
+// ---------------------------------------------------------------------------
+// Keep the playback position across filter changes
+// ---------------------------------------------------------------------------
+
+let lastPos = 0;
+let lastPosAt = 0;
+async function readPos(): Promise<number> {
+  const v = await invoke("mpv_get_property", { name: "time-pos" }).catch(() => null);
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Called right before a filter change: silence end-file errors briefly and
+ *  jump back to where the viewer was if mpv restarts from the top. */
+async function guardPosition() {
+  const pos = await readPos();
+  // Fall back to the watchdog's reading only if it is fresh (same episode).
+  const keep = pos > 0 ? pos : Date.now() - lastPosAt < 4000 ? lastPos : 0;
+  (window as { __harborBoostQuietUntil?: number }).__harborBoostQuietUntil = Date.now() + 6000;
+  if (keep < 5) return;
+  for (const delay of [800, 2000, 4000, 7000]) {
+    window.setTimeout(async () => {
+      const now = await readPos();
+      if (now + 8 < keep) {
+        await mpvCmd(["seek", keep, "absolute", "exact"]).catch(() => {});
+      }
+    }, delay);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // mpv application
 // ---------------------------------------------------------------------------
@@ -181,8 +219,9 @@ async function removeAll() {
     appliedShader = null;
   }
   if (appliedVf) {
+    await guardPosition();
     await mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
-    await mpvSet("hwdec", hostHwdec()).catch(() => {});
+    await hwdecRestore();
     appliedVf = null;
   }
   if (appliedSmooth) {
@@ -239,14 +278,16 @@ async function sync(): Promise<void> {
   const vfPresent = (await mpvGet("vf")).includes("harborfg");
   if (vf) {
     if (appliedVf !== vf || !vfPresent) {
+      await guardPosition();
       if (vfPresent) await mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
-      await mpvSet("hwdec", "auto-copy").catch(() => {});
+      await hwdecForFg();
       await mpvCmd(["vf", "add", `${VF_LABEL}:vapoursynth=[${vf}]`]);
       appliedVf = vf;
     }
   } else if (appliedVf || vfPresent) {
+    await guardPosition();
     await mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
-    await mpvSet("hwdec", hostHwdec()).catch(() => {});
+    await hwdecRestore();
     appliedVf = null;
   }
 
@@ -351,6 +392,8 @@ export function boostClearError() {
 export function boostAttach(): () => void {
   if (!boostSupported()) return () => {};
   // A fresh mpv instance has none of our filters yet.
+  lastPos = 0;
+  lastPosAt = 0;
   appliedShader = null;
   appliedVf = null;
   appliedSmooth = false;
@@ -359,12 +402,16 @@ export function boostAttach(): () => void {
     fgFailed = true;
     const detail = String((e as CustomEvent).detail ?? "").trim();
     setState({ error: `Frame generation failed to start${detail ? `: ${detail}` : ""}` });
-    void mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
-    void mpvSet("hwdec", hostHwdec()).catch(() => {});
+    void guardPosition().then(() => mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {}));
+    void hwdecRestore();
     appliedVf = null;
   };
   window.addEventListener("harbor:vapoursynth-error", onVsError);
   const id = window.setInterval(() => {
+    void readPos().then((p) => {
+      lastPos = p;
+      lastPosAt = Date.now();
+    });
     if (state.on && !state.busy) void runSync();
   }, 2500);
   if (state.on) {

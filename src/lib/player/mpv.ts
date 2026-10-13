@@ -238,6 +238,8 @@ export function createMpvBridge(mpvOptions?: MpvOptions): PlayerBridge {
       const reason = (raw as { reason?: string }).reason?.toLowerCase();
       if (reason === "stop" || reason === "quit" || reason === "redirect") return;
       if (Date.now() < suppressEndFileUntil) return;
+      // Harbor Boost swaps video filters live; a reinit is not a playback failure.
+      if (typeof window !== "undefined" && Date.now() < ((window as { __harborBoostQuietUntil?: number }).__harborBoostQuietUntil ?? 0)) return;
       if (reason && reason !== "eof") {
         snap.status = "error";
         snap.errorCode = "decode";
