@@ -52,7 +52,11 @@ export function saveResumeBatch(
     if (typeof e.season === "number" && typeof e.episode === "number") {
       if (e.season < 0 || e.episode < 1) continue;
     }
-    all[entryKey(e.id, e.season, e.episode)] = { ms: e.ms, t: e.t ?? now };
+    const key = entryKey(e.id, e.season, e.episode);
+    const cur = all[key];
+    // Keep the local spot when it is newer, or when the incoming one is a near-zero offset.
+    if (cur && ((e.t ?? now) <= cur.t || (e.ms < 30_000 && cur.ms > e.ms))) continue;
+    all[key] = { ms: e.ms, t: e.t ?? now };
   }
   writeAll(all);
 }

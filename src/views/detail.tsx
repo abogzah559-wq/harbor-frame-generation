@@ -502,7 +502,7 @@ export function DetailView({
     if (!Number.isFinite(stremioT)) return;
     if (libraryItem.type === "movie") {
       const local = readResumeEntry(meta.id);
-      if (!local || stremioT > local.t) {
+      if (!local || (stremioT > local.t && (st.timeOffset >= 30_000 || local.ms < st.timeOffset))) {
         saveResumeMs(meta.id, st.timeOffset);
         if (import.meta.env.DEV)
           console.info(`[stremio-resume] movie ${meta.id}: synced ${st.timeOffset}ms from Stremio (mtime=${libraryItem._mtime})`);
@@ -514,7 +514,9 @@ export function DetailView({
     const episode = st.episode ?? se?.episode;
     if (!isAnime && libraryItem.type === "series" && season && episode) {
       const local = readResumeEntry(meta.id, season, episode);
-      if (!local || stremioT > local.t) {
+      // A near-zero Stremio offset must not overwrite a real local position.
+      if (!local || (stremioT > local.t && (st.timeOffset >= 30_000 || local.ms < st.timeOffset))) {
+        console.warn("[resume] synced from Stremio", { season, episode, remote: st.timeOffset, local: local?.ms ?? null });
         saveResumeMs(meta.id, st.timeOffset, season, episode);
         if (import.meta.env.DEV)
           console.info(`[stremio-resume] series ${meta.id} S${season}E${episode}: synced ${st.timeOffset}ms from Stremio (mtime=${libraryItem._mtime})`);

@@ -55,7 +55,9 @@ export function usePlayerExit(params: {
   const closePlayer = useCallback(async () => {
     await captureExitSnapshot();
     const pos = getPlaybackPosition();
-    if (Number.isFinite(pos) && pos > 0) {
+    // Same floor as the autosave: closing during a (re)load must not wipe the saved spot.
+    if (Number.isFinite(pos) && pos >= 5) {
+      console.warn("[resume] save on exit", pos);
       saveResumeMs(src.meta.id, pos * 1000, season, episode);
       if (liveStreamRef && pos >= REMEMBER_MIN_SEC) {
         savePlayback(
