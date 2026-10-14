@@ -127,18 +127,18 @@ type State = {
 const STORAGE_KEY = "harbor.boost.v1";
 const ON_KEY = "harbor.boost.on";
 
-function migrate(p: Partial<BoostProfile> & { fgMode?: string; procRes?: string }, v: number | undefined): Partial<BoostProfile> {
+function migrate(p: Partial<BoostProfile>, v: number | undefined): Partial<BoostProfile> {
   const out = { ...p } as Partial<BoostProfile>;
+  const raw = p as Record<string, unknown>;
   if (!v || v < 2) {
     // v1 → v2: "adaptive" split into auto / target; 1440p processing removed
     // (RIFE ncnn collapses above 1080p); 3 GPU threads measured fastest.
-    if (p.fgMode === "adaptive") out.fgMode = (p.target ?? 0) > 0 ? "target" : "auto";
-    else if (p.fgMode === "fixed") out.fgMode = "auto";
-    if (p.procRes === "1440") out.procRes = "auto";
-    if ((p.gpuThreads ?? 2) <= 2) out.gpuThreads = 3;
+    if (raw.fgMode === "adaptive") out.fgMode = Number(raw.target ?? 0) > 0 ? "target" : "auto";
+    else if (raw.fgMode === "fixed") out.fgMode = "auto";
+    if (Number(raw.gpuThreads ?? 2) <= 2) out.gpuThreads = 3;
   }
-  if (out.procRes && !["auto", "native", "1080", "720"].includes(out.procRes)) out.procRes = "auto";
-  if (out.fgMode && !["auto", "fixed", "target"].includes(out.fgMode)) out.fgMode = "auto";
+  if (!["auto", "native", "1080", "720"].includes(String(raw.procRes ?? "auto"))) out.procRes = "auto";
+  if (!["auto", "fixed", "target"].includes(String(out.fgMode ?? "auto"))) out.fgMode = "auto";
   return out;
 }
 
