@@ -385,7 +385,9 @@ function plan(p: BoostProfile, c: Calib, m: Media): BoostPlan & { maxHeight: num
 
   // Share of RIFE's full speed we allow: leaves room for decoding, the
   // renderer and upscaling under the user's limit.
-  const share = Math.min(0.85, Math.max(0.25, (p.maxGpu - 15) / 90));
+  // Measured on an RTX 4070 Super: average use ≈ out/speed·90 + 15, with
+  // peaks ~10 points above the average. The limit is for peaks.
+  const share = Math.min(0.8, Math.max(0.25, (p.maxGpu - 25) / 90));
   const speed = (h: number) => speedAt(c, h) * scale * (h < sh ? 0.8 : 1);
 
   // Output rates that are whole divisors of the refresh rate (even pacing).
