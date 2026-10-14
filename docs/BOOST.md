@@ -38,14 +38,6 @@ limit** you want; Boost does the rest. RIFE 4.6 is the fastest model and is
 recommended for most GPUs. Heavier models (4.25 Lite, 4.26) work too; Boost
 just lowers the resolution or frame rate to stay inside the limit.
 
----|---|
-| RTX 4070 and up | RIFE 4.6 or 4.25 Lite, ×2, Processing resolution: Auto |
-| RTX 3060 – 4060, RTX 5070 | RIFE 4.6, ×2, Auto (4K will run at 1440p) |
-| Older / integrated GPUs | Smooth mode |
-
-RIFE 4.26 with *Target FPS 60* on a 4K source is the heaviest combination;
-leave Processing resolution on *Auto* if you use it.
-
 ---
 
 # Harbor Boost — توليد الفريمات والتكبير داخل مشغّل Harbor
