@@ -563,7 +563,17 @@ pub struct Calib {
 }
 
 fn calib_key(model: &str, gpu_id: i32, threads: u32) -> String {
-    format!("{}|{}|{}", model, gpu_id, threads)
+    // v2: measured with playback paused (v1 entries could be taken under load).
+    format!("v2|{}|{}|{}", model, gpu_id, threads)
+}
+
+/// Cached RIFE speed, or null when it still has to be measured.
+#[tauri::command]
+pub fn boost_calibration_cached(model: String, gpu_id: i32, threads: u32) -> Option<Calib> {
+    let r = root()?;
+    calib_cache(&r)
+        .get(&calib_key(&model, gpu_id, threads))
+        .and_then(|v| serde_json::from_value::<Calib>(v.clone()).ok())
 }
 
 fn calib_cache(r: &Path) -> serde_json::Map<String, serde_json::Value> {

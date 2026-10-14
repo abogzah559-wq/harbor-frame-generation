@@ -312,18 +312,33 @@ async function calibrate(p: BoostProfile, force = false): Promise<Calib> {
   const pending = calibPending.get(key);
   if (pending) return pending;
   const run = (async () => {
+    const args = { model: p.model, gpuId: p.gpuId, threads: p.gpuThreads };
+    if (!force) {
+      const cached = await invoke<Calib | null>("boost_calibration_cached", args).catch(() => null);
+      if (cached && cached.fps1080 > 0) {
+        calibCache.set(key, cached);
+        return cached;
+      }
+    }
+    // Measure on an idle GPU: drop our filter and pause for the few seconds
+    // it takes, otherwise a running RIFE cuts the result to a third.
     setState({ calibrating: true });
+    const wasPaused = (await mpvGet("pause")) === "yes";
     try {
-      const c = await invoke<Calib>("boost_calibrate", {
-        model: p.model,
-        gpuId: p.gpuId,
-        threads: p.gpuThreads,
-        force,
-      });
+      if ((await mpvGet("vf")).includes("harborfg")) {
+        await guardPosition();
+        await mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
+        appliedVf = null;
+      }
+      if (!wasPaused) await mpvSet("pause", true).catch(() => {});
+      const c = await invoke<Calib>("boost_calibrate", { ...args, force: true });
       console.warn("[boost] calibration", { key, ...c });
       calibCache.set(key, c);
+      delete speedScale[key];
+      saveScales();
       return c;
     } finally {
+      if (!wasPaused) await mpvSet("pause", false).catch(() => {});
       calibPending.delete(key);
       setState({ calibrating: false });
     }
