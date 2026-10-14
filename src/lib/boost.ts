@@ -26,8 +26,9 @@ import { t } from "@/lib/i18n";
 
 export type BoostModel = "4.6" | "4.22-lite" | "4.25-lite" | "4.26";
 
-/** Height RIFE works at. "auto" lets the planner choose (never above 1080p). */
-export type BoostProcRes = "auto" | "native" | "1080" | "720";
+/** Highest height RIFE may work at. Never above 1080p: RIFE ncnn collapses
+ *  there (measured 1440p ≈ 1/3, 4K ≈ 1/11 of its 1080p speed). */
+export type BoostProcRes = "auto" | "1080" | "720";
 
 /** auto = smoothest rate that fits the GPU budget and matches the screen. */
 export type BoostOutMode = "auto" | "fixed" | "target";
@@ -137,7 +138,7 @@ function migrate(p: Partial<BoostProfile>, v: number | undefined): Partial<Boost
     else if (raw.fgMode === "fixed") out.fgMode = "auto";
     if (Number(raw.gpuThreads ?? 2) <= 2) out.gpuThreads = 3;
   }
-  if (!["auto", "native", "1080", "720"].includes(String(raw.procRes ?? "auto"))) out.procRes = "auto";
+  if (!["auto", "1080", "720"].includes(String(raw.procRes ?? "auto"))) out.procRes = "auto";
   if (!["auto", "fixed", "target"].includes(String(out.fgMode ?? "auto"))) out.fgMode = "auto";
   return out;
 }
@@ -279,7 +280,7 @@ async function guardPosition() {
 
 type Calib = { fps720: number; fps1080: number };
 
-const SCALE_KEY = "harbor.boost.speedscale.v1";
+const SCALE_KEY = "harbor.boost.speedscale.v2";
 const calibCache = new Map<string, Calib>();
 const calibPending = new Map<string, Promise<Calib>>();
 
@@ -361,14 +362,10 @@ function plan(p: BoostProfile, c: Calib, m: Media): BoostPlan & { maxHeight: num
   const refresh = m.refresh > 20 ? Math.round(m.refresh) : 60;
   const sh = m.srcHeight > 0 ? m.srcHeight : 1080;
 
-  const heights =
-    p.procRes === "native"
-      ? [sh]
-      : p.procRes === "1080"
-        ? [Math.min(sh, 1080)]
-        : p.procRes === "720"
-          ? [Math.min(sh, 720)]
-          : [...new Set([Math.min(sh, 1080), 900, 720, 540].filter((h) => h <= sh))];
+  // Highest height allowed by the user's choice, then lower steps the
+  // planner may fall back to: the GPU limit always wins.
+  const top = Math.min(sh, p.procRes === "720" ? 720 : 1080);
+  const heights = [...new Set([top, 900, 720, 540].filter((h) => h <= top))];
   if (heights.length === 0) heights.push(sh);
 
   // Share of RIFE's full speed we allow: leaves room for decoding, the
@@ -384,39 +381,38 @@ function plan(p: BoostProfile, c: Calib, m: Media): BoostPlan & { maxHeight: num
   }
   if (divisors.length === 0) divisors.push(Math.min(refresh, src * 2));
 
-  const wanted = (h: number): number | null => {
+  const userRate =
+    p.fgMode === "fixed"
+      ? src * Math.min(4, Math.max(2, p.multiplier))
+      : p.fgMode === "target"
+        ? Math.min(Math.max(30, p.target), refresh)
+        : null;
+
+  const pick = (h: number, auto: boolean): number | null => {
     const budget = share * speed(h);
-    if (p.fgMode === "fixed") {
-      const f = src * Math.min(4, Math.max(2, p.multiplier));
-      return f <= budget ? f : null;
-    }
-    if (p.fgMode === "target") {
-      const f = Math.min(p.target > 0 ? p.target : refresh, refresh);
-      return f <= budget ? f : null;
-    }
+    if (!auto && userRate != null) return userRate <= budget ? userRate : null;
     const fit = divisors.filter((f) => f <= budget);
     return fit.length ? Math.max(...fit) : null;
   };
 
+  // 1) the user's own rate, at the highest height that fits;
+  // 2) otherwise the smoothest even-paced rate that fits;
+  // 3) otherwise the lightest possible plan (and say so).
   let height = heights[heights.length - 1];
   let out: number | null = null;
-  for (const h of heights) {
-    const f = wanted(h);
-    if (f != null) {
-      height = h;
-      out = f;
-      break;
+  for (const auto of userRate == null ? [true] : [false, true]) {
+    for (const h of heights) {
+      const f = pick(h, auto);
+      if (f != null) {
+        height = h;
+        out = f;
+        break;
+      }
     }
+    if (out != null) break;
   }
   const overBudget = out == null;
-  if (out == null) {
-    out =
-      p.fgMode === "fixed"
-        ? src * Math.min(4, Math.max(2, p.multiplier))
-        : p.fgMode === "target"
-          ? Math.min(p.target > 0 ? p.target : refresh, refresh)
-          : Math.min(...divisors);
-  }
+  if (out == null) out = Math.min(...divisors);
   const gpu = Math.min(100, Math.round((out / speed(height)) * 90 + 15));
   return {
     srcHeight: sh,
@@ -521,13 +517,14 @@ async function wantedVf(p: BoostProfile): Promise<string | null> {
     }
   }
   const pl = lastPlan;
-  const fixed = p.fgMode === "fixed";
+  // Always hand RIFE the planned output rate (it may differ from the user's
+  // multiplier when that would exceed the GPU limit).
   const path = await invoke<string>("boost_framegen_script", {
     opts: {
       model: p.model,
-      mode: fixed ? "fixed" : "adaptive",
+      mode: "adaptive",
       multiplier: p.multiplier,
-      target: fixed ? 0 : pl.outFps,
+      target: pl.outFps,
       flowScale: p.flowScale,
       sceneDetect: p.sceneDetect,
       gpuId: p.gpuId,

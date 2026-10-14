@@ -261,14 +261,11 @@ export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
     { value: "auto", label: t("Auto") },
     { value: "1080", label: "1080p" },
     { value: "720", label: "720p" },
-    { value: "native", label: t("Source") },
   ];
   const resHint =
     p.procRes === "auto"
       ? t("Up to 1080p, lower only if your GPU needs it. 4K and 1440p videos are processed at 1080p and upscaled back.")
-      : p.procRes === "native"
-        ? t("Works at the video's own size. Above 1080p this is very heavy for any GPU.")
-        : t("Larger videos are scaled down before frame generation, then upscaled back to your screen.");
+      : t("Larger videos are scaled down before frame generation, then upscaled back to your screen.");
   const outHint =
     p.fgMode === "auto"
       ? t("Picks the smoothest frame rate that fits your GPU limit and divides your screen's refresh rate evenly.")
