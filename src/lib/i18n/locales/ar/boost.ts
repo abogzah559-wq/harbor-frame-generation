@@ -66,6 +66,27 @@ const boost: Record<string, string> = {
   "Model {m}": "النموذج {m}",
   Ready: "جاهز",
   "Not downloaded": "غير محمّل",
+  "Up to 1080p, lower only if your GPU needs it. 4K and 1440p videos are processed at 1080p and upscaled back.":
+    "حتى 1080p، وينزل أقل بس لو كرتك يحتاج. أفلام 4K و1440p تتعالج على 1080p وبعدين تتكبّر وترجع.",
+  "Works at the video's own size. Above 1080p this is very heavy for any GPU.":
+    "يشتغل على دقة الفيديو نفسها. فوق 1080p ثقيل جدًا على أي كرت.",
+  "Picks the smoothest frame rate that fits your GPU limit and divides your screen's refresh rate evenly.":
+    "يختار أنعم عدد فريمات يناسب حد كرتك وينقسم على تردّد شاشتك بالتساوي.",
+  "Your own frame rate, capped at the screen's refresh rate.": "عدد فريمات تختاره أنت، وما يتعدى تردّد الشاشة.",
+  "GPU limit": "حد استهلاك الكرت",
+  "Boost keeps total GPU use under this, lowering frame rate or resolution when needed.":
+    "Boost يخلي استهلاك الكرت كله تحت هذا الحد، وينزّل الفريمات أو الدقة لو احتاج.",
+  "Measuring your GPU…": "جارٍ قياس قوة كرتك…",
+  "Now playing. Screen {hz} Hz, your GPU does {f} fps at 1080p with this model.":
+    "الحين: شاشتك {hz} هرتز، وكرتك يطلّع {f} فريم على 1080p بهذا النموذج.",
+  "Measure GPU again": "إعادة قياس الكرت",
+  "Use after changing the graphics card or driver. Takes a few seconds.":
+    "استخدمه لو غيّرت كرت الشاشة أو التعريف. ياخذ ثواني.",
+  "Measure now": "قِس الحين",
+  "Your GPU can't reach this output with these settings. Try RIFE 4.6 or Auto output.":
+    "كرتك ما يقدر يوصل لهذا الناتج بهالإعدادات. جرّب RIFE 4.6 أو خلّ الناتج تلقائي.",
+  "Boost lowered its load to keep playback smooth.": "Boost خفّف الحمل عشان يبقى التشغيل سلس.",
+  "Frame generation failed to start": "توليد الفريمات ما اشتغل",
   "Your GPU couldn't keep up, so frame generation now works at {h}p.":
     "كرتك ما لحق، فصار توليد الفريمات يشتغل على {h}p.",
   "Your GPU still can't keep up. Try the RIFE 4.6 model with X2.":

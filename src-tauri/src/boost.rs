@@ -389,7 +389,8 @@ pub struct FrameGenOpts {
     /// "fixed" | "adaptive"
     mode: String,
     multiplier: u32,
-    target: u32,
+    /// Output fps in "adaptive" mode (fractional: e.g. 240/4 = 60, 165/3 = 55).
+    target: f64,
     /// 25..100; below 75 RIFE runs its flow at half resolution (uhd mode).
     flow_scale: u32,
     scene_detect: bool,
@@ -406,11 +407,11 @@ impl Default for FrameGenOpts {
             model: "4.6".into(),
             mode: "fixed".into(),
             multiplier: 2,
-            target: 60,
+            target: 60.0,
             flow_scale: 100,
             scene_detect: true,
             gpu_id: -1,
-            gpu_threads: 2,
+            gpu_threads: 3,
             max_height: 0,
         }
     }
@@ -456,9 +457,18 @@ else:
         rgb = core.resize.Bicubic(clip, format=vs.RGBS, matrix_in_s=matrix)
     use_sc = False
     if __SC__:
+        # Scene cuts from a tiny luma proxy (VapourSynth R79 has no misc.SCDetect).
         try:
-            sc = core.misc.SCDetect(clip, threshold=0.12)
-            rgb = core.std.CopyFrameProps(rgb, sc)
+            luma = core.resize.Bilinear(core.std.ShufflePlanes(clip, 0, vs.GRAY), 64, 36, format=vs.GRAYS)
+            st = core.std.PlaneStats(luma, luma[1:] + luma[-1])
+
+            def _mark(n, f):
+                o = f.copy()
+                o.props["_SceneChangeNext"] = 1 if f.props["PlaneStatsDiff"] > 0.1 else 0
+                return o
+
+            st = core.std.ModifyFrame(st, st, _mark)
+            rgb = core.std.CopyFrameProps(rgb, st, props=["_SceneChangeNext"])
             use_sc = True
         except Exception:
             use_sc = False
@@ -494,12 +504,12 @@ pub fn boost_framegen_script(opts: FrameGenOpts) -> Result<String, String> {
     let script = VPY
         .replace("__RIFE__", &dll.to_string_lossy())
         .replace("__MODE__", if opts.mode == "adaptive" { "adaptive" } else { "fixed" })
-        .replace("__TARGET__", &opts.target.clamp(0, 1000).to_string())
+        .replace("__TARGET__", &format!("{:.4}", opts.target.clamp(0.0, 1000.0)))
         .replace("__MULT__", &opts.multiplier.clamp(2, 8).to_string())
         .replace("__SC__", if opts.scene_detect { "True" } else { "False" })
         .replace("__UHD__", if opts.flow_scale < 75 { "True" } else { "False" })
         .replace("__MODEL__", &m.1.to_string())
-        .replace("__THREADS__", &opts.gpu_threads.clamp(1, 8).to_string())
+        .replace("__THREADS__", &opts.gpu_threads.clamp(1, 6).to_string())
         .replace("__GPU__", &opts.gpu_id.clamp(-1, 16).to_string())
         .replace("__MAXH__", &max_height(opts.max_height).to_string());
     let dir = r.join("scripts");
@@ -514,6 +524,118 @@ pub fn boost_framegen_script(opts: FrameGenOpts) -> Result<String, String> {
         std::fs::write(&path, script).map_err(|e| format!("write script: {e}"))?;
     }
     Ok(path.to_string_lossy().into_owned())
+}
+
+// ---------------------------------------------------------------------------
+// GPU calibration: how many frames per second RIFE produces on this PC.
+// Measured once per (model, GPU, threads) and cached in calib.json; the
+// player plans resolution and output fps so RIFE stays inside a GPU budget.
+// ---------------------------------------------------------------------------
+
+const CALIB_PY: &str = r#"import json, time
+import vapoursynth as vs
+core = vs.core
+core.std.LoadPlugin(r"__RIFE__")
+res = {}
+for w, h, n in ((1280, 720, 200), (1920, 1080, 140)):
+    src = core.std.BlankClip(width=w, height=h, format=vs.RGBS, length=n // 2 + 10, fpsnum=24000, fpsden=1001)
+    kw = dict(model=__MODEL__, factor_num=2, factor_den=1, gpu_thread=__THREADS__, sc=False)
+    if __GPU__ >= 0:
+        kw["gpu_id"] = __GPU__
+    out = core.rife.RIFE(src, **kw)
+    for i in range(6):
+        out.get_frame(i)
+    t = time.perf_counter()
+    c = 0
+    for _ in out.frames(close=True):
+        c += 1
+        if c >= n:
+            break
+    res[str(h)] = round(c / (time.perf_counter() - t), 1)
+print("RESULT " + json.dumps(res))
+"#;
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Calib {
+    /// RIFE x2 output fps at 1280x720 and 1920x1080 with nothing else running.
+    fps720: f64,
+    fps1080: f64,
+}
+
+fn calib_key(model: &str, gpu_id: i32, threads: u32) -> String {
+    format!("{}|{}|{}", model, gpu_id, threads)
+}
+
+fn calib_cache(r: &Path) -> serde_json::Map<String, serde_json::Value> {
+    std::fs::read_to_string(r.join("calib.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .and_then(|v| v.as_object().cloned())
+        .unwrap_or_default()
+}
+
+fn run_calibration(r: &Path, model: &str, gpu_id: i32, threads: u32) -> Result<Calib, String> {
+    let m = model_entry(model);
+    let script = CALIB_PY
+        .replace("__RIFE__", &rife_dir(r).join("librife.dll").to_string_lossy())
+        .replace("__MODEL__", &m.1.to_string())
+        .replace("__THREADS__", &threads.clamp(1, 6).to_string())
+        .replace("__GPU__", &gpu_id.clamp(-1, 16).to_string());
+    let dir = r.join("scripts");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    let py = dir.join("calibrate.py");
+    std::fs::write(&py, script).map_err(|e| format!("write calibrate.py: {e}"))?;
+    let mut cmd = std::process::Command::new(vs_dir(r).join("python.exe"));
+    cmd.arg(&py).current_dir(&dir);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    let out = cmd.output().map_err(|e| format!("calibration: {e}"))?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let line = text
+        .lines()
+        .find_map(|l| l.strip_prefix("RESULT "))
+        .ok_or_else(|| {
+            let err = String::from_utf8_lossy(&out.stderr);
+            format!("calibration failed: {}", err.lines().last().unwrap_or("no output"))
+        })?;
+    let v: serde_json::Value = serde_json::from_str(line).map_err(|e| format!("calibration: {e}"))?;
+    let f = |k: &str| v.get(k).and_then(|x| x.as_f64()).unwrap_or(0.0);
+    let c = Calib { fps720: f("720"), fps1080: f("1080") };
+    if c.fps1080 <= 0.0 {
+        return Err("calibration returned no result".into());
+    }
+    Ok(c)
+}
+
+/// Cached RIFE speed for this model/GPU, measuring it first when needed (~5-10 s).
+#[tauri::command]
+pub async fn boost_calibrate(model: String, gpu_id: i32, threads: u32, force: bool) -> Result<Calib, String> {
+    let r = root().ok_or("LOCALAPPDATA is not set")?;
+    if !runtime_ready(&r) || !rife_ready(&r) || !model_ready(&r, &model) {
+        return Err("Frame generation is not installed yet".into());
+    }
+    let key = calib_key(&model, gpu_id, threads);
+    let mut cache = calib_cache(&r);
+    if !force {
+        if let Some(c) = cache.get(&key).and_then(|v| serde_json::from_value::<Calib>(v.clone()).ok()) {
+            return Ok(c);
+        }
+    }
+    let _g = INSTALL_LOCK.lock().await;
+    let rr = r.clone();
+    let m = model.clone();
+    let c = tokio::task::spawn_blocking(move || run_calibration(&rr, &m, gpu_id, threads))
+        .await
+        .map_err(|e| e.to_string())??;
+    cache.insert(key, serde_json::to_value(&c).map_err(|e| e.to_string())?);
+    let _ = std::fs::write(
+        r.join("calib.json"),
+        serde_json::to_string_pretty(&serde_json::Value::Object(cache)).unwrap_or_default(),
+    );
+    Ok(c)
 }
 
 /// Only sensible caps reach the script: 0 (source size) or an even height >= 480.

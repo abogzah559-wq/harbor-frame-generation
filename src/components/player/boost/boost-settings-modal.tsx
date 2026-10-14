@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Download, Minus, Plus, RotateCcw, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, Download, Gauge, Loader2, Minus, Plus, RotateCcw, Sparkles, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/lib/i18n";
@@ -6,8 +6,8 @@ import {
   BOOST_MODELS,
   DEFAULT_BOOST_CONFIG,
   boostSaveConfig,
+  boostRecalibrate,
   boostStatus,
-  boostWorkingHeight,
   useBoost,
   type BoostConfig,
   type BoostProfile,
@@ -141,7 +141,21 @@ function Stepper({
   );
 }
 
-function Range({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (v: number) => void }) {
+function Range({
+  value,
+  min,
+  max,
+  step = 1,
+  suffix = "",
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  onChange: (v: number) => void;
+}) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <div className="flex items-center gap-3">
@@ -149,7 +163,7 @@ function Range({ value, min, max, onChange }: { value: number; min: number; max:
         type="range"
         min={min}
         max={max}
-        step={1}
+        step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="hb-range h-1.5 w-full cursor-pointer appearance-none rounded-full"
@@ -157,7 +171,10 @@ function Range({ value, min, max, onChange }: { value: number; min: number; max:
           background: `linear-gradient(to var(--hb-dir, right), var(--color-accent) ${pct}%, var(--color-edge) ${pct}%)`,
         }}
       />
-      <span className="w-6 text-end text-[12.5px] font-semibold tabular-nums text-ink-muted">{value}</span>
+      <span className="w-10 text-end text-[12.5px] font-semibold tabular-nums text-ink-muted">
+        {value}
+        {suffix}
+      </span>
     </div>
   );
 }
@@ -194,7 +211,7 @@ function mb(n: number) {
 
 export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
   const t = useT();
-  const { config: saved, error, notice, progress } = useBoost();
+  const { config: saved, error, notice, progress, plan, calibrating } = useBoost();
   const [cfg, setCfg] = useState<BoostConfig>(saved);
   const [status, setStatus] = useState<BoostStatus | null>(null);
   const [saving, setSaving] = useState(false);
@@ -242,17 +259,22 @@ export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
 
   const resOptions: Opt<BoostProfile["procRes"]>[] = [
     { value: "auto", label: t("Auto") },
-    { value: "native", label: t("Source") },
-    { value: "1440", label: "1440p" },
     { value: "1080", label: "1080p" },
+    { value: "720", label: "720p" },
+    { value: "native", label: t("Source") },
   ];
-  const working = boostWorkingHeight(p);
   const resHint =
     p.procRes === "auto"
-      ? t("Full quality, and steps down to 1440p or 1080p by itself if your GPU can't keep up (useful for 4K).")
+      ? t("Up to 1080p, lower only if your GPU needs it. 4K and 1440p videos are processed at 1080p and upscaled back.")
       : p.procRes === "native"
-        ? t("Always works at the video's own size. 4K needs a very strong GPU.")
+        ? t("Works at the video's own size. Above 1080p this is very heavy for any GPU.")
         : t("Larger videos are scaled down before frame generation, then upscaled back to your screen.");
+  const outHint =
+    p.fgMode === "auto"
+      ? t("Picks the smoothest frame rate that fits your GPU limit and divides your screen's refresh rate evenly.")
+      : p.fgMode === "fixed"
+        ? t("Tip: X2 on a 24 fps episode gives 48 fps. Higher needs a strong GPU.")
+        : t("Your own frame rate, capped at the screen's refresh rate.");
 
   const scaleOptions: Opt<BoostProfile["scalingType"]>[] = [
     { value: "Off", label: t("Off") },
@@ -318,30 +340,51 @@ export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
               <Pills value={p.frameGeneration} options={fgOptions} onChange={(v) => set({ frameGeneration: v })} />
             </Field>
 
+            {p.frameGeneration === "RIFE" && (calibrating || plan) && (
+              <div className="flex items-center gap-3 rounded-xl bg-accent-soft px-3 py-2.5">
+                {calibrating ? (
+                  <Loader2 size={18} className="shrink-0 animate-spin text-accent" />
+                ) : (
+                  <Gauge size={18} className="shrink-0 text-accent" />
+                )}
+                <div className="flex min-w-0 flex-col">
+                  {calibrating ? (
+                    <span className="text-[13px] font-semibold text-ink">{t("Measuring your GPU…")}</span>
+                  ) : plan ? (
+                    <>
+                      <span className="text-[13px] font-semibold text-ink" dir="ltr">
+                        {plan.srcHeight}p {plan.height < plan.srcHeight ? `→ ${plan.height}p ` : ""}· {plan.outFps} fps · ≈{plan.gpu}% GPU
+                      </span>
+                      <span className="text-[11.5px] text-ink-muted">
+                        {t("Now playing. Screen {hz} Hz, your GPU does {f} fps at 1080p with this model.", {
+                          hz: plan.refresh,
+                          f: plan.speed1080,
+                        })}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            )}
+
             {p.frameGeneration === "RIFE" && (
               <>
                 <Field label={t("Model")}>
                   <ModelList value={p.model} onChange={(v) => set({ model: v })} t={t} />
                 </Field>
 
-                <Field
-                  label={t("Output")}
-                  hint={
-                    p.fgMode === "adaptive"
-                      ? t("Adaptive: target 0 follows your screen's refresh rate (capped at it).")
-                      : t("Tip: X2 on a 24 fps episode gives 48 fps. Higher needs a strong GPU.")
-                  }
-                >
+                <Field label={t("Output")} hint={outHint}>
                   <div className="flex flex-wrap items-center gap-2">
                     <Pills
                       value={p.fgMode}
                       options={[
+                        { value: "auto", label: t("Auto") },
                         { value: "fixed", label: t("Multiplier") },
-                        { value: "adaptive", label: t("Target FPS") },
+                        { value: "target", label: t("Target FPS") },
                       ]}
                       onChange={(v) => set({ fgMode: v })}
                     />
-                    {p.fgMode === "fixed" ? (
+                    {p.fgMode === "auto" ? null : p.fgMode === "fixed" ? (
                       <Pills
                         value={p.multiplier}
                         options={[
@@ -352,23 +395,20 @@ export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
                         onChange={(v) => set({ multiplier: v })}
                       />
                     ) : (
-                      <Stepper value={p.target} min={0} max={240} step={6} suffix=" fps" onChange={(v) => set({ target: v })} />
+                      <Stepper value={Math.max(30, p.target)} min={30} max={240} step={6} suffix=" fps" onChange={(v) => set({ target: v })} />
                     )}
                   </div>
                 </Field>
 
-                <Field
-                  label={t("Processing resolution")}
-                  hint={
-                    <>
-                      {resHint}
-                      {working > 0 && (
-                        <span className="ms-1 font-semibold text-ink">{t("Now: {h}p", { h: working })}</span>
-                      )}
-                    </>
-                  }
-                >
+                <Field label={t("Processing resolution")} hint={resHint}>
                   <Pills value={p.procRes} options={resOptions} onChange={(v) => set({ procRes: v })} />
+                </Field>
+
+                <Field
+                  label={t("GPU limit")}
+                  hint={t("Boost keeps total GPU use under this, lowering frame rate or resolution when needed.")}
+                >
+                  <Range value={p.maxGpu} min={50} max={95} step={5} suffix="%" onChange={(v) => set({ maxGpu: v })} />
                 </Field>
 
                 <div className="flex flex-col gap-1 border-t border-edge-soft pt-2">
@@ -435,6 +475,20 @@ export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
                       ]}
                       onChange={(v) => set({ gpuId: v })}
                     />
+                  </Field>
+                  <Field
+                    label={t("Measure GPU again")}
+                    hint={t("Use after changing the graphics card or driver. Takes a few seconds.")}
+                  >
+                    <button
+                      type="button"
+                      disabled={calibrating}
+                      onClick={() => void boostRecalibrate()}
+                      className="flex h-9 w-fit items-center gap-2 rounded-full bg-elevated/50 px-4 text-[12.5px] font-semibold text-ink ring-1 ring-edge-soft/60 hover:bg-raised disabled:opacity-60"
+                    >
+                      {calibrating ? <Loader2 size={14} className="animate-spin" /> : <Gauge size={14} />}
+                      {t("Measure now")}
+                    </button>
                   </Field>
                   <Field label={t("GPU threads")}>
                     <Stepper value={p.gpuThreads} min={1} max={4} onChange={(v) => set({ gpuThreads: v })} />

@@ -7,18 +7,34 @@ import { t } from "@/lib/i18n";
 /**
  * Harbor Boost — frame generation (RIFE through VapourSynth inside mpv) and
  * GPU upscaling (FSR / NIS / CAS shaders), toggled from the player bar.
- * Nothing runs outside Harbor's own mpv.
+ *
+ * Performance model ("GPU budget"):
+ *   1. RIFE's speed is measured once per model/GPU (boost_calibrate, ~4 s):
+ *      output fps at 720p and 1080p.
+ *   2. For every video the planner picks the processing height and the
+ *      output frame rate so RIFE needs at most a set share of that speed,
+ *      keeping total GPU use under the user's limit (default 80 %).
+ *      Output rates are whole divisors of the screen's refresh rate
+ *      (240 Hz → 48 / 60 / 80 fps, 165 Hz → 55 fps) so every frame is shown
+ *      for the same number of refreshes: no judder.
+ *   3. mpv requests frames from VapourSynth a few at a time
+ *      (concurrent-frames) with a deep buffer, so the GPU works at an even
+ *      pace instead of 100 % bursts that starve the renderer.
+ *   4. If mpv still drops frames, the measured speed is scaled down and the
+ *      plan is recomputed (lower fps or resolution).
  */
 
 export type BoostModel = "4.6" | "4.22-lite" | "4.25-lite" | "4.26";
 
-/** Height RIFE works at. "auto" = source size, stepping down to 1440p / 1080p
- *  by itself when the GPU can't keep up (mpv starts dropping frames). */
-export type BoostProcRes = "auto" | "native" | "1440" | "1080";
+/** Height RIFE works at. "auto" lets the planner choose (never above 1080p). */
+export type BoostProcRes = "auto" | "native" | "1080" | "720";
+
+/** auto = smoothest rate that fits the GPU budget and matches the screen. */
+export type BoostOutMode = "auto" | "fixed" | "target";
 
 export type BoostProfile = {
   frameGeneration: "Off" | "RIFE" | "Smooth";
-  fgMode: "fixed" | "adaptive";
+  fgMode: BoostOutMode;
   multiplier: number;
   target: number;
   model: BoostModel;
@@ -27,6 +43,8 @@ export type BoostProfile = {
   gpuId: number;
   gpuThreads: number;
   procRes: BoostProcRes;
+  /** Upper limit for total GPU use, in percent. */
+  maxGpu: number;
   scalingType: "Off" | "FSR" | "NIS" | "CAS";
   sharpness: number;
 };
@@ -35,19 +53,22 @@ export type BoostConfig = {
   /** Stay on for the next episodes until switched off. */
   remember: boolean;
   profile: BoostProfile;
+  /** Settings schema version (2 = GPU budget planner). */
+  v?: number;
 };
 
 export const DEFAULT_BOOST_PROFILE: BoostProfile = {
   frameGeneration: "RIFE",
-  fgMode: "fixed",
+  fgMode: "auto",
   multiplier: 2,
   target: 60,
   model: "4.6",
   flowScale: 100,
   sceneDetect: true,
   gpuId: -1,
-  gpuThreads: 2,
+  gpuThreads: 3,
   procRes: "auto",
+  maxGpu: 80,
   scalingType: "FSR",
   sharpness: 9,
 };
@@ -55,6 +76,7 @@ export const DEFAULT_BOOST_PROFILE: BoostProfile = {
 export const DEFAULT_BOOST_CONFIG: BoostConfig = {
   remember: true,
   profile: DEFAULT_BOOST_PROFILE,
+  v: 2,
 };
 
 export const BOOST_MODELS: Array<{ id: BoostModel; label: string; note: string }> = [
@@ -76,25 +98,61 @@ export type BoostStatus = {
 
 export type BoostProgress = { step: string; done: number; total: number };
 
+/** What Boost is doing for the current video (shown in the settings panel). */
+export type BoostPlan = {
+  srcHeight: number;
+  srcFps: number;
+  refresh: number;
+  height: number;
+  outFps: number;
+  /** Estimated total GPU use in percent. */
+  gpu: number;
+  /** RIFE fps this GPU reaches at 1080p (after any slow-down corrections). */
+  speed1080: number;
+  overBudget: boolean;
+};
+
 type State = {
   config: BoostConfig;
   on: boolean;
   busy: boolean;
+  calibrating: boolean;
   progress: BoostProgress | null;
   error: string | null;
-  /** Neutral, non-error message (e.g. "now processing at 1440p"). */
+  /** Neutral, non-error message (e.g. "Boost lowered its load"). */
   notice: string | null;
+  plan: BoostPlan | null;
 };
 
 const STORAGE_KEY = "harbor.boost.v1";
 const ON_KEY = "harbor.boost.on";
+
+function migrate(p: Partial<BoostProfile> & { fgMode?: string; procRes?: string }, v: number | undefined): Partial<BoostProfile> {
+  const out = { ...p } as Partial<BoostProfile>;
+  if (!v || v < 2) {
+    // v1 → v2: "adaptive" split into auto / target; 1440p processing removed
+    // (RIFE ncnn collapses above 1080p); 3 GPU threads measured fastest.
+    if (p.fgMode === "adaptive") out.fgMode = (p.target ?? 0) > 0 ? "target" : "auto";
+    else if (p.fgMode === "fixed") out.fgMode = "auto";
+    if (p.procRes === "1440") out.procRes = "auto";
+    if ((p.gpuThreads ?? 2) <= 2) out.gpuThreads = 3;
+  }
+  if (out.procRes && !["auto", "native", "1080", "720"].includes(out.procRes)) out.procRes = "auto";
+  if (out.fgMode && !["auto", "fixed", "target"].includes(out.fgMode)) out.fgMode = "auto";
+  return out;
+}
 
 function load(): BoostConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const p = JSON.parse(raw) as Partial<BoostConfig>;
-      return { ...DEFAULT_BOOST_CONFIG, ...p, profile: { ...DEFAULT_BOOST_PROFILE, ...(p.profile ?? {}) } };
+      return {
+        ...DEFAULT_BOOST_CONFIG,
+        ...p,
+        v: 2,
+        profile: { ...DEFAULT_BOOST_PROFILE, ...migrate(p.profile ?? {}, p.v) },
+      };
     }
   } catch {
     /* ignore */
@@ -116,9 +174,11 @@ let state: State = {
   config: initialConfig,
   on: loadOn(initialConfig),
   busy: false,
+  calibrating: false,
   progress: null,
   error: null,
   notice: null,
+  plan: null,
 };
 const listeners = new Set<() => void>();
 
@@ -214,45 +274,161 @@ async function guardPosition() {
 }
 
 // ---------------------------------------------------------------------------
-// Processing resolution (auto step-down for 4K on mid-range GPUs)
+// Calibration (measured RIFE speed) + slow-down corrections
 // ---------------------------------------------------------------------------
 
-const CAP_KEY = "harbor.boost.autocap.v1";
-const AUTO_STEPS = [1440, 1080];
+type Calib = { fps720: number; fps1080: number };
 
-function loadCaps(): Record<string, number> {
+const SCALE_KEY = "harbor.boost.speedscale.v1";
+const calibCache = new Map<string, Calib>();
+const calibPending = new Map<string, Promise<Calib>>();
+
+function calibKey(p: BoostProfile) {
+  return `${p.model}|${p.gpuId}|${p.gpuThreads}`;
+}
+
+function loadScales(): Record<string, number> {
   try {
-    const raw = localStorage.getItem(CAP_KEY);
-    const v = raw ? (JSON.parse(raw) as unknown) : null;
+    const v = JSON.parse(localStorage.getItem(SCALE_KEY) ?? "{}") as unknown;
     return v && typeof v === "object" ? (v as Record<string, number>) : {};
   } catch {
     return {};
   }
 }
-let autoCaps: Record<string, number> = loadCaps();
-function saveCaps() {
+let speedScale: Record<string, number> = loadScales();
+function saveScales() {
   try {
-    localStorage.setItem(CAP_KEY, JSON.stringify(autoCaps));
+    localStorage.setItem(SCALE_KEY, JSON.stringify(speedScale));
   } catch {
     /* ignore */
   }
 }
 
-/** Height of the video being played (before any filter). */
-let srcHeight = 0;
-
-/** 0 = RIFE works at the source size. */
-function capFor(p: BoostProfile): number {
-  if (p.procRes === "1440") return 1440;
-  if (p.procRes === "1080") return 1080;
-  if (p.procRes === "native") return 0;
-  return srcHeight > 0 ? autoCaps[String(srcHeight)] ?? 0 : 0;
+async function calibrate(p: BoostProfile, force = false): Promise<Calib> {
+  const key = calibKey(p);
+  const hit = calibCache.get(key);
+  if (hit && !force) return hit;
+  const pending = calibPending.get(key);
+  if (pending) return pending;
+  const run = (async () => {
+    setState({ calibrating: true });
+    try {
+      const c = await invoke<Calib>("boost_calibrate", {
+        model: p.model,
+        gpuId: p.gpuId,
+        threads: p.gpuThreads,
+        force,
+      });
+      console.warn("[boost] calibration", { key, ...c });
+      calibCache.set(key, c);
+      return c;
+    } finally {
+      calibPending.delete(key);
+      setState({ calibrating: false });
+    }
+  })();
+  calibPending.set(key, run);
+  return run;
 }
 
-/** Effective height RIFE ends up working at (for display / logs). */
-export function boostWorkingHeight(p: BoostProfile = state.config.profile): number {
-  const cap = capFor(p);
-  return cap > 0 && srcHeight > cap ? cap : srcHeight;
+/** Measure this GPU again (e.g. after a driver or graphics card change). */
+export async function boostRecalibrate(): Promise<void> {
+  const p = state.config.profile;
+  delete speedScale[calibKey(p)];
+  saveScales();
+  planSig = "";
+  await calibrate(p, true);
+  if (state.on) await runSync();
+}
+
+// ---------------------------------------------------------------------------
+// Planner
+// ---------------------------------------------------------------------------
+
+type Media = { srcHeight: number; srcFps: number; refresh: number };
+
+/** RIFE output fps at height h. ncnn scales ~h^-2 up to 1080p and collapses
+ *  above it (measured: 1440p ≈ 1/3, 2160p ≈ 1/11 of the 1080p speed). */
+function speedAt(c: Calib, h: number): number {
+  const e = Math.log(c.fps720 / c.fps1080) / Math.log(1080 / 720);
+  const k = Number.isFinite(e) && e > 1 && e < 4 ? e : 2;
+  return c.fps1080 * Math.pow(1080 / h, h > 1080 ? 3.5 : k);
+}
+
+function plan(p: BoostProfile, c: Calib, m: Media): BoostPlan & { maxHeight: number } {
+  const scale = speedScale[calibKey(p)] ?? 1;
+  const src = m.srcFps > 1 ? m.srcFps : 23.976;
+  const refresh = m.refresh > 20 ? Math.round(m.refresh) : 60;
+  const sh = m.srcHeight > 0 ? m.srcHeight : 1080;
+
+  const heights =
+    p.procRes === "native"
+      ? [sh]
+      : p.procRes === "1080"
+        ? [Math.min(sh, 1080)]
+        : p.procRes === "720"
+          ? [Math.min(sh, 720)]
+          : [...new Set([Math.min(sh, 1080), 900, 720, 540].filter((h) => h <= sh))];
+  if (heights.length === 0) heights.push(sh);
+
+  // Share of RIFE's full speed we allow: leaves room for decoding, the
+  // renderer and upscaling under the user's limit.
+  const share = Math.min(0.85, Math.max(0.25, (p.maxGpu - 15) / 90));
+  const speed = (h: number) => speedAt(c, h) * scale * (h < sh ? 0.8 : 1);
+
+  // Output rates that are whole divisors of the refresh rate (even pacing).
+  const divisors: number[] = [];
+  for (let k = 1; k <= 12; k++) {
+    const f = refresh / k;
+    if (f >= src * 1.9 && f <= src * 5) divisors.push(f);
+  }
+  if (divisors.length === 0) divisors.push(Math.min(refresh, src * 2));
+
+  const wanted = (h: number): number | null => {
+    const budget = share * speed(h);
+    if (p.fgMode === "fixed") {
+      const f = src * Math.min(4, Math.max(2, p.multiplier));
+      return f <= budget ? f : null;
+    }
+    if (p.fgMode === "target") {
+      const f = Math.min(p.target > 0 ? p.target : refresh, refresh);
+      return f <= budget ? f : null;
+    }
+    const fit = divisors.filter((f) => f <= budget);
+    return fit.length ? Math.max(...fit) : null;
+  };
+
+  let height = heights[heights.length - 1];
+  let out: number | null = null;
+  for (const h of heights) {
+    const f = wanted(h);
+    if (f != null) {
+      height = h;
+      out = f;
+      break;
+    }
+  }
+  const overBudget = out == null;
+  if (out == null) {
+    out =
+      p.fgMode === "fixed"
+        ? src * Math.min(4, Math.max(2, p.multiplier))
+        : p.fgMode === "target"
+          ? Math.min(p.target > 0 ? p.target : refresh, refresh)
+          : Math.min(...divisors);
+  }
+  const gpu = Math.min(100, Math.round((out / speed(height)) * 90 + 15));
+  return {
+    srcHeight: sh,
+    srcFps: src,
+    refresh,
+    height,
+    maxHeight: height < sh ? height : 0,
+    outFps: Math.round(out * 100) / 100,
+    gpu,
+    speed1080: Math.round(c.fps1080 * scale),
+    overBudget,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -263,10 +439,13 @@ const VF_LABEL = "@harborfg";
 let appliedShader: string | null = null;
 let appliedVf: string | null = null;
 let appliedSmooth = false;
+let appliedSync = false;
 let fgFailed = false;
 let vfAppliedAt = 0;
+let planSig = "";
+let lastPlan: (BoostPlan & { maxHeight: number }) | null = null;
 let lag: { at: number; drops: number; bad: number } | null = null;
-let gaveUpNotice = false;
+let overNotice = false;
 
 const mpvSet = (name: string, value: unknown) => invoke("mpv_set_property", { name, value });
 const norm = (v: string) => v.replace(/\\\\/g, "/").replace(/\\/g, "/").toLowerCase();
@@ -275,6 +454,23 @@ async function mpvGet(name: string): Promise<string> {
   return norm(typeof v === "string" ? v : JSON.stringify(v ?? ""));
 }
 const mpvCmd = (cmd: unknown[]) => invoke("mpv_command", { cmd });
+
+async function numProp(name: string): Promise<number> {
+  const v = await invoke("mpv_get_property", { name }).catch(() => null);
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+async function readMedia(): Promise<Media | null> {
+  const srcHeight = await numProp("height");
+  if (!(srcHeight > 0)) return null;
+  let srcFps = await numProp("container-fps");
+  if (!(srcFps > 1)) srcFps = 23.976;
+  let refresh = await numProp("display-fps");
+  if (!(refresh > 20)) refresh = await numProp("estimated-display-fps");
+  if (!(refresh > 20)) refresh = 60;
+  return { srcHeight, srcFps: Math.round(srcFps * 1000) / 1000, refresh: Math.round(refresh) };
+}
 
 async function removeAll() {
   if (appliedShader) {
@@ -287,6 +483,7 @@ async function removeAll() {
     await hwdecRestore();
     appliedVf = null;
   }
+  await restoreSync();
   if (appliedSmooth) {
     if (!host.motionInterp) {
       await mpvSet("interpolation", false).catch(() => {});
@@ -294,6 +491,13 @@ async function removeAll() {
     }
     appliedSmooth = false;
   }
+  setState({ plan: null });
+}
+
+async function restoreSync() {
+  if (!appliedSync) return;
+  if (!host.motionInterp && !appliedSmooth) await mpvSet("video-sync", "audio").catch(() => {});
+  appliedSync = false;
 }
 
 async function wantedShader(p: BoostProfile): Promise<string | null> {
@@ -303,17 +507,32 @@ async function wantedShader(p: BoostProfile): Promise<string | null> {
 
 async function wantedVf(p: BoostProfile): Promise<string | null> {
   if (p.frameGeneration !== "RIFE" || fgFailed) return null;
+  const media = await readMedia();
+  if (!media) return appliedVf; // no video yet: keep whatever is there
+  const c = await calibrate(p);
+  const sig = JSON.stringify([calibKey(p), p.fgMode, p.multiplier, p.target, p.procRes, p.maxGpu, media, speedScale[calibKey(p)] ?? 1]);
+  if (sig !== planSig || !lastPlan) {
+    lastPlan = plan(p, c, media);
+    planSig = sig;
+    setState({ plan: lastPlan });
+    if (lastPlan.overBudget && !overNotice) {
+      overNotice = true;
+      setState({ notice: t("Your GPU can't reach this output with these settings. Try RIFE 4.6 or Auto output.") });
+    }
+  }
+  const pl = lastPlan;
+  const fixed = p.fgMode === "fixed";
   const path = await invoke<string>("boost_framegen_script", {
     opts: {
       model: p.model,
-      mode: p.fgMode,
+      mode: fixed ? "fixed" : "adaptive",
       multiplier: p.multiplier,
-      target: p.target,
+      target: fixed ? 0 : pl.outFps,
       flowScale: p.flowScale,
       sceneDetect: p.sceneDetect,
       gpuId: p.gpuId,
       gpuThreads: p.gpuThreads,
-      maxHeight: capFor(p),
+      maxHeight: pl.maxHeight,
     },
   });
   return path.replace(/\\/g, "/");
@@ -326,8 +545,6 @@ async function sync(): Promise<void> {
     return;
   }
   const p = state.config.profile;
-  const h = Number(await invoke("mpv_get_property", { name: "height" }).catch(() => 0)) || 0;
-  if (h > 0) srcHeight = h;
 
   const shader = await wantedShader(p);
   const curShaders = await mpvGet("glsl-shaders");
@@ -347,26 +564,26 @@ async function sync(): Promise<void> {
       await guardPosition();
       if (vfPresent) await mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
       await hwdecForFg();
-      await mpvCmd(["vf", "add", `${VF_LABEL}:vapoursynth=[${vf}]`]);
+      // A few frames in flight + a deep buffer: steady GPU load, no bursts.
+      const conc = Math.min(6, p.gpuThreads + 1);
+      await mpvCmd(["vf", "add", `${VF_LABEL}:vapoursynth=file=[${vf}]:buffered-frames=10:concurrent-frames=${conc}`]);
       appliedVf = vf;
       vfAppliedAt = Date.now();
       lag = null;
-      console.warn("[boost] apply", {
-        model: p.model,
-        mode: p.fgMode,
-        multiplier: p.multiplier,
-        target: p.target,
-        procRes: p.procRes,
-        srcHeight,
-        workHeight: boostWorkingHeight(p),
-        gpuId: p.gpuId,
-      });
+      console.warn("[boost] apply", { model: p.model, threads: p.gpuThreads, plan: lastPlan });
+    }
+    if (!appliedSync) {
+      // Output fps divides the refresh rate: lock video to the display.
+      await mpvSet("video-sync", "display-resample").catch(() => {});
+      appliedSync = true;
     }
   } else if (appliedVf || vfPresent) {
     await guardPosition();
     await mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
     await hwdecRestore();
     appliedVf = null;
+    await restoreSync();
+    setState({ plan: null });
   }
 
   const smooth = p.frameGeneration === "Smooth";
@@ -378,35 +595,27 @@ async function sync(): Promise<void> {
   } else if (appliedSmooth) {
     if (!host.motionInterp) {
       await mpvSet("interpolation", false).catch(() => {});
-      await mpvSet("video-sync", "audio").catch(() => {});
+      if (!appliedSync) await mpvSet("video-sync", "audio").catch(() => {});
     }
     appliedSmooth = false;
   }
 }
 
 // ---------------------------------------------------------------------------
-// Lag monitor: when RIFE can't keep up, mpv drops frames / drifts from audio.
-// In "auto" we then lower the processing resolution one step at a time.
+// Lag monitor: if mpv still drops frames / drifts from audio, the GPU is
+// slower than measured right now (other apps, thermals): lower the plan.
 // ---------------------------------------------------------------------------
-
-async function numProp(name: string): Promise<number> {
-  const v = await invoke("mpv_get_property", { name }).catch(() => null);
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : NaN;
-}
 
 async function checkLag() {
   const p = state.config.profile;
-  if (!state.on || state.busy || p.frameGeneration !== "RIFE" || p.procRes !== "auto" || !appliedVf) {
+  if (!state.on || state.busy || p.frameGeneration !== "RIFE" || !appliedVf) {
     lag = null;
     return;
   }
-  // Give the filter time to warm up after (re)loading.
   if (Date.now() - vfAppliedAt < 8000 || (await mpvGet("pause")) === "yes") {
     lag = null;
     return;
   }
-  if (srcHeight <= 0) return;
   const drops = await numProp("frame-drop-count");
   if (!Number.isFinite(drops)) return;
   const avsync = Math.abs(await numProp("avsync"));
@@ -417,23 +626,19 @@ async function checkLag() {
   }
   const dt = Math.max(0.5, (now - lag.at) / 1000);
   const rate = (drops - lag.drops) / dt;
-  const lagging = rate > 2 || (Number.isFinite(avsync) && avsync > 0.3);
+  const lagging = rate > 1.5 || (Number.isFinite(avsync) && avsync > 0.25);
   lag = { at: now, drops, bad: lagging ? lag.bad + 1 : 0 };
   if (lag.bad < 3) return;
   lag = null;
 
-  const cur = boostWorkingHeight(p);
-  const next = AUTO_STEPS.find((s) => s < cur);
-  console.warn("[boost] lagging", { rate: Number(rate.toFixed(1)), avsync, srcHeight, cur, next: next ?? null });
-  if (next && srcHeight > 0) {
-    autoCaps[String(srcHeight)] = next;
-    saveCaps();
-    setState({ notice: t("Your GPU couldn't keep up, so frame generation now works at {h}p.", { h: next }) });
-    await runSync();
-  } else if (!gaveUpNotice) {
-    gaveUpNotice = true;
-    setState({ notice: t("Your GPU still can't keep up. Try the RIFE 4.6 model with X2.") });
-  }
+  const key = calibKey(p);
+  const before = speedScale[key] ?? 1;
+  if (before <= 0.35) return;
+  speedScale[key] = Math.max(0.35, before * 0.8);
+  saveScales();
+  console.warn("[boost] lagging", { rate: Number(rate.toFixed(1)), avsync, scale: speedScale[key], plan: lastPlan });
+  setState({ notice: t("Boost lowered its load to keep playback smooth.") });
+  await runSync();
 }
 
 let syncing: Promise<void> | null = null;
@@ -492,22 +697,21 @@ export function boostToggle(): Promise<void> {
 }
 
 export async function boostSaveConfig(config: BoostConfig): Promise<void> {
+  const next = { ...config, v: 2 };
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
     /* ignore */
   }
   fgFailed = false;
-  // New settings may be lighter: let "auto" try the full resolution again.
-  autoCaps = {};
-  saveCaps();
-  gaveUpNotice = false;
-  setState({ config, error: null, notice: null });
-  if (!config.remember) persistOn(false);
+  overNotice = false;
+  planSig = "";
+  setState({ config: next, error: null, notice: null });
+  if (!next.remember) persistOn(false);
   if (state.on && boostSupported()) {
     setState({ busy: true });
     try {
-      await ensureInstalled(config.profile);
+      await ensureInstalled(next.profile);
       await runSync();
     } catch (e) {
       setState({ error: errText(e) });
@@ -535,14 +739,16 @@ export function boostAttach(): () => void {
   appliedShader = null;
   appliedVf = null;
   appliedSmooth = false;
-  srcHeight = 0;
+  appliedSync = false;
+  planSig = "";
+  lastPlan = null;
   lag = null;
-  gaveUpNotice = false;
+  overNotice = false;
   const onVsError = (e: Event) => {
     if (!state.on || state.config.profile.frameGeneration !== "RIFE" || fgFailed) return;
     fgFailed = true;
     const detail = String((e as CustomEvent).detail ?? "").trim();
-    setState({ error: `Frame generation failed to start${detail ? `: ${detail}` : ""}` });
+    setState({ error: `${t("Frame generation failed to start")}${detail ? `: ${detail}` : ""}` });
     void guardPosition().then(() => mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {}));
     void hwdecRestore();
     appliedVf = null;
@@ -590,6 +796,8 @@ export function boostAttach(): () => void {
     appliedShader = null;
     appliedVf = null;
     appliedSmooth = false;
+    appliedSync = false;
+    setState({ plan: null });
     if (!state.config.remember && state.on) {
       setState({ on: false });
       persistOn(false);

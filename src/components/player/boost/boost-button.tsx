@@ -30,7 +30,7 @@ export function BoostControl({
 }) {
   const t = useT();
   const { settings } = useSettings();
-  const { on, busy, error, notice, progress } = useBoost();
+  const { on, busy, calibrating, error, notice, progress } = useBoost();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const errTimer = useRef<number | null>(null);
 
@@ -67,7 +67,9 @@ export function BoostControl({
   const big = variant === "stremio";
   const iconSize = big ? 26 : 22;
   const pct = progress && progress.total ? Math.round((progress.done / progress.total) * 100) : null;
-  const label = busy
+  const label = calibrating
+    ? t("Measuring your GPU…")
+    : busy
     ? progress
       ? `${t("Downloading")} ${progress.step}${pct != null ? ` ${pct}%` : ""}`
       : t("Working…")
@@ -100,7 +102,7 @@ export function BoostControl({
             : "text-white/85 hover:bg-white/10 hover:text-white"
       }`}
     >
-      {busy ? <Loader2 size={iconSize - 2} className="animate-spin" /> : <Sparkles size={iconSize - 2} />}
+      {busy || calibrating ? <Loader2 size={iconSize - 2} className="animate-spin" /> : <Sparkles size={iconSize - 2} />}
       {busy && pct != null && (
         <span className="absolute bottom-1 text-[9px] font-bold tabular-nums text-white/90">{pct}%</span>
       )}

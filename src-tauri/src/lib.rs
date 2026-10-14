@@ -588,6 +588,7 @@ pub fn run() {
             boost::boost_framegen_script,
             boost::boost_shader,
             boost::boost_log,
+            boost::boost_calibrate,
             settings_store::settings_read,
             settings_store::settings_write,
             proc_mem::harbor_process_memory,
