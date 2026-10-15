@@ -45,7 +45,21 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Fetch libmpv
-        run: pnpm run setup:libmpv
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The upstream harborstremio/harbor release that hosted libmpv-2.dll is
+          # gone. Take the same verified DLL out of our boost-2 installer; the
+          # setup script still checks its SHA-256.
+          if ! pnpm run setup:libmpv; then
+            gh release download boost-2 -R "${{ github.repository }}" -p "*.exe" -O old-setup.exe
+            7z e -y -r old-setup.exe libmpv-2.dll -olibmpv-old > /dev/null
+            mkdir -p src-tauri/libmpv
+            cp libmpv-old/libmpv-2.dll src-tauri/libmpv/libmpv-2.dll
+            rm -rf old-setup.exe libmpv-old
+            pnpm run setup:libmpv
+          fi
 
       - name: Fetch fonts
         run: pnpm run setup:fonts
