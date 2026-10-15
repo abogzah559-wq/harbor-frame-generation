@@ -100,14 +100,13 @@ jobs:
           PY
           rm -rf mpv.7z mpv-bin
 
-      - name: Check mpv.exe starts
+      - name: Check mpv.exe has its DLLs
         shell: pwsh
         run: |
-          # Fails the build if mpv.exe is missing a DLL (0xC0000135).
-          $out = & ./mpv-fix/mpv.exe --no-config --version 2>&1
-          $code = $LASTEXITCODE
-          $out | Select-Object -First 3
-          if ($code -ne 0) { throw "mpv.exe failed to start (exit $code)" }
+          # Fails the build if mpv.exe imports a DLL that is neither bundled
+          # next to it nor part of Windows / the GPU driver.
+          python .github/scripts/pe_imports.py mpv-fix/mpv.exe
+          if ($LASTEXITCODE -ne 0) { throw "mpv.exe is missing DLLs" }
           Compress-Archive -Path mpv-fix/* -DestinationPath mpv-fix-x64.zip -Force
 
       - name: Fetch external binaries
