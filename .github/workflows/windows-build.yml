@@ -55,12 +55,46 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # shinchiro prunes old releases, so always take the newest build.
+          # Newer builds link LuaJIT dynamically: mpv.exe needs lua51.dll next
+          # to it, otherwise Windows shows "lua51.dll was not found" whenever
+          # Harbor starts the bundled mpv.exe (thumbnails, clips).
           mkdir -p src-tauri/binaries
-          gh release download 20260610 -R shinchiro/mpv-winbuild-cmake -p "mpv-x86_64-2026*" -O mpv.7z || \
-            gh release download -R shinchiro/mpv-winbuild-cmake -p "mpv-x86_64-2*" -O mpv.7z
+          gh release download -R shinchiro/mpv-winbuild-cmake -p "mpv-x86_64-2*" -O mpv.7z
           7z x -y mpv.7z -ompv-bin > /dev/null
-          cp "$(find mpv-bin -name mpv.exe | head -1)" src-tauri/binaries/mpv-x86_64-pc-windows-msvc.exe
+          exe="$(find mpv-bin -name mpv.exe | head -1)"
+          dir="$(dirname "$exe")"
+          ls -la "$dir"
+          cp "$exe" src-tauri/binaries/mpv-x86_64-pc-windows-msvc.exe
+          mkdir -p src-tauri/binaries/mpv-deps mpv-fix
+          cp "$exe" mpv-fix/mpv.exe
+          for d in "$dir"/*.dll; do
+            [ -e "$d" ] || continue
+            cp "$d" src-tauri/binaries/mpv-deps/
+            cp "$d" mpv-fix/
+          done
+          ls -la src-tauri/binaries/mpv-deps
+          python - <<'PY'
+          import json, os
+          p = "src-tauri/tauri.windows.conf.json"
+          c = json.load(open(p))
+          r = c["bundle"]["resources"]
+          for f in sorted(os.listdir("src-tauri/binaries/mpv-deps")):
+              r["binaries/mpv-deps/" + f] = f
+          json.dump(c, open(p, "w"), indent=2)
+          print(json.dumps(r, indent=2))
+          PY
           rm -rf mpv.7z mpv-bin
+
+      - name: Check mpv.exe starts
+        shell: pwsh
+        run: |
+          # Fails the build if mpv.exe is missing a DLL (0xC0000135).
+          $out = & ./mpv-fix/mpv.exe --no-config --version 2>&1
+          $code = $LASTEXITCODE
+          $out | Select-Object -First 3
+          if ($code -ne 0) { throw "mpv.exe failed to start (exit $code)" }
+          Compress-Archive -Path mpv-fix/* -DestinationPath mpv-fix-x64.zip -Force
 
       - name: Fetch external binaries
         shell: bash
@@ -93,7 +127,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: harbor-windows-framegen
-          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            mpv-fix-x64.zip
           retention-days: 14
 
       - name: Publish release
@@ -104,4 +140,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Harbor Boost ${{ inputs.release_tag || github.ref_name }}
           body_path: docs/BOOST.md
-          files: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          files: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            mpv-fix-x64.zip

@@ -17,6 +17,12 @@ A community build of [Harbor](https://github.com/harborstremio/harbor) that adds
 - Fully translated settings panel (English / العربية), drawn with Harbor's own
   theme tokens.
 
+**boost-3:** fixes the Windows error *"lua51.dll was not found"* (mpv.exe)
+that popped up when a film started. Recent mpv builds need `lua51.dll` next to
+`mpv.exe`; the installer now ships it, and the build fails if `mpv.exe` can't
+start. Already on another Harbor build? Unzip `mpv-fix-x64.zip` into Harbor's
+install folder (`%LOCALAPPDATA%\Harbor`) and replace the files.
+
 Runtime pieces (Python embed, VapourSynth, RIFE ncnn-Vulkan, one model,
 ≈60 MB) are downloaded once, the first time you switch frame generation on.
 
@@ -49,6 +55,8 @@ just lowers the resolution or frame rate to stay inside the limit.
 - **تكبير** بـ FSR أو NIS أو CAS مع التحكم بالحدّة.
 - **مخطط استهلاك الكرت** (جديد في boost-2): Boost يقيس قوة كرتك مرة وحدة (يوقف الفيلم 3-4 ثواني أول مرة بس)، وبعدين يختار دقة المعالجة (حتى 1080p) وعدد فريمات ينقسم على تردّد شاشتك بالتساوي، بحيث استهلاك الكرت يبقى تحت الحد اللي تختاره (الافتراضي 80%). ولو صار تقطيع يخفف الحمل لحاله. تجربة على RTX 4070 Super وشاشة 240Hz: أفلام 4K و1080p تشتغل على 48-60 فريم بدون أي فريم ضايع.
 - إعدادات كاملة بالعربي والإنجليزي، وبنفس شكل Harbor.
+
+**boost-3:** يصلّح رسالة ويندوز *"lua51.dll was not found"* اللي كانت تطلع أول ما يشتغل الفيلم. نسخ mpv الجديدة تحتاج ملف `lua51.dll` جنب `mpv.exe`، والمثبّت صار يجيبه معه. لو عندك نسخة Harbor ثانية: فك `mpv-fix-x64.zip` داخل مجلد Harbor (`%LOCALAPPDATA%\Harbor`) واستبدل الملفات.
 
 أول مرة تشغّل توليد الفريمات يتحمّل تقريبًا 60 ميجا مرة وحدة بس.
 
