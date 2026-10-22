@@ -211,7 +211,7 @@ function mb(n: number) {
 
 export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
   const t = useT();
-  const { config: saved, error, notice, progress, plan, calibrating } = useBoost();
+  const { config: saved, error, notice, progress, plan, calibrating, gpuNow } = useBoost();
   const [cfg, setCfg] = useState<BoostConfig>(saved);
   const [status, setStatus] = useState<BoostStatus | null>(null);
   const [saving, setSaving] = useState(false);
@@ -350,7 +350,7 @@ export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
                   ) : plan ? (
                     <>
                       <span className="text-[13px] font-semibold text-ink" dir="ltr">
-                        {plan.srcHeight}p {plan.height < plan.srcHeight ? `→ ${plan.height}p ` : ""}· {plan.outFps} fps · ≈{plan.gpu}% GPU
+                        {plan.srcHeight}p {plan.height < plan.srcHeight ? `→ ${plan.height}p ` : ""}· {plan.outFps} fps · {gpuNow != null ? `GPU ${gpuNow}% / ${saved.profile.maxGpu}%` : `≈${plan.gpu}% GPU`}
                       </span>
                       <span className="text-[11.5px] text-ink-muted">
                         {t("Now playing. Screen {hz} Hz, your GPU does {f} fps at 1080p with this model.", {

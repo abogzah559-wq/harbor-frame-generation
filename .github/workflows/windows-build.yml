@@ -139,7 +139,7 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: harbor-windows-framegen
+          name: harbor-frame-generation-windows
           path: |
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
             mpv-fix-x64.zip
@@ -151,8 +151,8 @@ jobs:
         with:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
-          name: Harbor Boost ${{ inputs.release_tag || github.ref_name }}
-          body_path: docs/BOOST.md
+          name: Harbor Frame Generation ${{ inputs.release_tag || github.ref_name }}
+          body_path: docs/RELEASE-NOTES.md
           files: |
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
             mpv-fix-x64.zip

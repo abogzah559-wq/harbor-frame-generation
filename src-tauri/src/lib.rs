@@ -590,6 +590,7 @@ pub fn run() {
             boost::boost_log,
             boost::boost_calibrate,
             boost::boost_calibration_cached,
+            boost::boost_gpu_usage,
             settings_store::settings_read,
             settings_store::settings_write,
             proc_mem::harbor_process_memory,

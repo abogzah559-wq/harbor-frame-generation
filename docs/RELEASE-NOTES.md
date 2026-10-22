@@ -1,6 +1,24 @@
-# Harbor Boost — frame generation & upscaling for Harbor's player
+# Harbor Frame Generation
 
-A community build of [Harbor](https://github.com/harborstremio/harbor) that adds
+**boost-4: smooth playback that uses your whole GPU budget**
+
+- **No more hitches or quality drops from buffering.** Frames lost while the
+  stream was loading were counted as a slow GPU, so Boost lowered the quality
+  and *kept it low forever*. Network stalls are now ignored.
+- **The GPU limit is real.** Boost now reads the GPU's actual use (the number
+  Task Manager shows) while you watch. If the GPU is well under your limit it
+  raises the frame rate or resolution; if it goes over, it lowers them. The
+  panel shows `GPU 78% / 80%` instead of an estimate.
+- **No sudden reloads.** The screen's refresh-rate reading wobbled
+  (239.6 / 240.3 Hz) and every wobble reloaded the frame-generation filter,
+  a visible stutter. The rate is now snapped to the real panel rate.
+- **No see-saw.** A setting that lagged is blocked for 10 minutes, so Boost
+  doesn't climb straight back into it.
+- The project is now called **Harbor Frame Generation**.
+
+---
+
+Harbor Frame Generation is a community build of [Harbor](https://github.com/harborstremio/harbor) that adds
 **Boost** to the native (mpv) player on Windows:
 
 - **AI frame generation (RIFE)** through VapourSynth inside Harbor's own mpv.
@@ -46,7 +64,18 @@ just lowers the resolution or frame rate to stay inside the limit.
 
 ---
 
-# Harbor Boost — توليد الفريمات والتكبير داخل مشغّل Harbor
+# Harbor Frame Generation
+
+**boost-4: تشغيل سلس ويستخدم قوة كرتك كاملة**
+
+- **انتهى التقطيع ونزول الجودة وقت التحميل.** الفريمات اللي تضيع وقت ما الفيلم يحمّل كانت تنحسب كأن الكرت بطيء، فكان Boost ينزّل الجودة *ويخليها نازلة على طول*. الحين بطء النت ما ينحسب.
+- **حد الكرت صار حقيقي.** Boost يقرأ استهلاك الكرت الفعلي (نفس رقم إدارة المهام) وقت المشاهدة. لو الكرت تحت حدك بكثير يرفع الفريمات أو الدقة، ولو تعدّاه ينزّلها. واللوحة توريك `GPU 78% / 80%` بدل رقم تقديري.
+- **بدون إعادة تحميل مفاجئة.** قراءة تردّد الشاشة كانت تتذبذب (239.6 / 240.3) وكل تذبذب يعيد تحميل توليد الفريمات ويسبب تقطيع. الحين التردّد يتثبّت على رقم شاشتك الحقيقي.
+- **بدون تذبذب.** الإعداد اللي سبّب تقطيع ينمنع 10 دقايق عشان Boost ما يرجع له على طول.
+- المشروع صار اسمه **Harbor Frame Generation**.
+
+---
+
 
 نسخة مجتمعية من Harbor تضيف **Boost** للمشغّل على ويندوز:
 

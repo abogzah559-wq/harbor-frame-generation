@@ -696,6 +696,133 @@ fn replace_define(src: &str, name: &str, value: &str) -> String {
         .join("\n")
 }
 
+// ---------------------------------------------------------------------------
+// Real GPU use, for the player's feedback loop (see src/lib/boost.ts).
+// Same figure Task Manager shows: per GPU engine, the busy share summed over
+// all processes, and the busiest engine is the GPU's use. NVIDIA cards answer
+// through nvidia-smi (fast); other cards through the GPU engine counters in
+// WMI, whose class names are not translated on non-English Windows.
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, PartialEq)]
+enum GpuSource {
+    Unknown,
+    NvidiaSmi,
+    Wmi,
+    None,
+}
+
+struct GpuReader {
+    source: GpuSource,
+    last: Option<(std::time::Instant, f64)>,
+}
+
+static GPU_READER: Mutex<GpuReader> = Mutex::new(GpuReader { source: GpuSource::Unknown, last: None });
+
+#[cfg(windows)]
+fn hidden(cmd: &mut std::process::Command) -> &mut std::process::Command {
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(0x0800_0000)
+}
+
+#[cfg(windows)]
+fn read_nvidia_smi() -> Option<f64> {
+    let out = hidden(&mut std::process::Command::new("nvidia-smi"))
+        .args(["--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    parse_nvidia_smi(&String::from_utf8_lossy(&out.stdout))
+}
+
+#[cfg(windows)]
+fn read_wmi() -> Option<f64> {
+    let out = hidden(&mut std::process::Command::new("powershell"))
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine | ForEach-Object { \"$($_.Name)=$($_.UtilizationPercentage)\" }",
+        ])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    parse_gpu_engines(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// Busiest GPU in nvidia-smi's `utilization.gpu` list (one line per card).
+fn parse_nvidia_smi(text: &str) -> Option<f64> {
+    text.lines()
+        .filter_map(|l| l.trim().parse::<f64>().ok())
+        .fold(None, |m: Option<f64>, v| Some(m.map_or(v, |m| m.max(v))))
+}
+
+/// `pid_12_luid_0x0_0x1_phys_0_eng_3_engtype_3D=41` lines → busiest engine,
+/// summed over processes (Task Manager's method).
+fn parse_gpu_engines(text: &str) -> Option<f64> {
+    let mut engines: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
+    for line in text.lines() {
+        let Some((name, value)) = line.trim().rsplit_once('=') else { continue };
+        let Ok(v) = value.trim().parse::<f64>() else { continue };
+        // Drop the "pid_N_" prefix so all processes on one engine add up.
+        let engine = name.find("luid_").map(|i| &name[i..]).unwrap_or(name);
+        *engines.entry(engine.to_string()).or_default() += v;
+    }
+    engines.into_values().map(|v| v.min(100.0)).fold(None, |m: Option<f64>, v| Some(m.map_or(v, |m| m.max(v))))
+}
+
+/// Current total GPU use in percent, or null when it can't be read.
+#[tauri::command]
+pub async fn boost_gpu_usage() -> Option<f64> {
+    tokio::task::spawn_blocking(read_gpu_usage).await.ok().flatten()
+}
+
+fn read_gpu_usage() -> Option<f64> {
+    #[cfg(not(windows))]
+    {
+        let _ = &GPU_READER;
+        None
+    }
+    #[cfg(windows)]
+    {
+        let source = {
+            let g = GPU_READER.lock().ok()?;
+            // PowerShell is slow to start: reuse a reading for a few seconds.
+            if g.source == GpuSource::Wmi {
+                if let Some((at, v)) = g.last {
+                    if at.elapsed() < std::time::Duration::from_secs(5) {
+                        return Some(v);
+                    }
+                }
+            }
+            g.source
+        };
+        let (value, source) = match source {
+            GpuSource::None => return None,
+            GpuSource::NvidiaSmi => (read_nvidia_smi(), GpuSource::NvidiaSmi),
+            GpuSource::Wmi => (read_wmi(), GpuSource::Wmi),
+            GpuSource::Unknown => match read_nvidia_smi() {
+                Some(v) => (Some(v), GpuSource::NvidiaSmi),
+                None => match read_wmi() {
+                    Some(v) => (Some(v), GpuSource::Wmi),
+                    None => (None, GpuSource::None),
+                },
+            },
+        };
+        if let Ok(mut g) = GPU_READER.lock() {
+            g.source = source;
+            if let Some(v) = value {
+                g.last = Some((std::time::Instant::now(), v));
+            }
+        }
+        value
+    }
+}
+
 /// Append diagnostic lines (player/boost events) to boost\player-log.txt.
 #[tauri::command]
 pub fn boost_log(lines: Vec<String>) {
@@ -745,5 +872,17 @@ mod tests {
         assert_eq!(max_height(1440), 1440);
         assert_eq!(max_height(1081), 1080);
         assert_eq!(max_height(100), 480);
+    }
+
+    #[test]
+    fn gpu_parsers() {
+        assert_eq!(parse_nvidia_smi("37\n82\n"), Some(82.0));
+        assert_eq!(parse_nvidia_smi("[N/A]\n"), None);
+        let wmi = "pid_10_luid_0x0_0x1_phys_0_eng_0_engtype_3D=30\n\
+                   pid_11_luid_0x0_0x1_phys_0_eng_0_engtype_3D=25\n\
+                   pid_11_luid_0x0_0x1_phys_0_eng_2_engtype_Compute_0=40\n\
+                   pid_12_luid_0x0_0x1_phys_0_eng_5_engtype_VideoDecode=10\n";
+        assert_eq!(parse_gpu_engines(wmi), Some(55.0));
+        assert_eq!(parse_gpu_engines(""), None);
     }
 }

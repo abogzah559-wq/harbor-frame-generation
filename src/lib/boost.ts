@@ -21,7 +21,12 @@ import { t } from "@/lib/i18n";
  *      (concurrent-frames) with a deep buffer, so the GPU works at an even
  *      pace instead of 100 % bursts that starve the renderer.
  *   4. If mpv still drops frames, the measured speed is scaled down and the
- *      plan is recomputed (lower fps or resolution).
+ *      plan is recomputed (lower fps or resolution). Drops while the stream
+ *      is buffering are network stalls, not GPU lag, and are ignored.
+ *   5. Real GPU use is read from Windows (the same counters Task Manager
+ *      shows) while playing. When the GPU sits well under the limit the plan
+ *      is raised, when it goes over it is lowered, so the limit is what the
+ *      GPU actually does and its spare power isn't wasted.
  */
 
 export type BoostModel = "4.6" | "4.22-lite" | "4.25-lite" | "4.26";
@@ -123,6 +128,8 @@ type State = {
   /** Neutral, non-error message (e.g. "Boost lowered its load"). */
   notice: string | null;
   plan: BoostPlan | null;
+  /** Real GPU use right now in percent (Task Manager's number), null if unknown. */
+  gpuNow: number | null;
 };
 
 const STORAGE_KEY = "harbor.boost.v1";
@@ -180,6 +187,7 @@ let state: State = {
   error: null,
   notice: null,
   plan: null,
+  gpuNow: null,
 };
 const listeners = new Set<() => void>();
 
@@ -280,7 +288,8 @@ async function guardPosition() {
 
 type Calib = { fps720: number; fps1080: number };
 
-const SCALE_KEY = "harbor.boost.speedscale.v2";
+// v3: v2 values could be stuck low (network stalls were counted as GPU lag).
+const SCALE_KEY = "harbor.boost.speedscale.v3";
 const calibCache = new Map<string, Calib>();
 const calibPending = new Map<string, Promise<Calib>>();
 
@@ -371,7 +380,11 @@ function speedAt(c: Calib, h: number): number {
   return c.fps1080 * Math.pow(1080 / h, h > 1080 ? 3.5 : k);
 }
 
-function plan(p: BoostProfile, c: Calib, m: Media): BoostPlan & { maxHeight: number } {
+/** Work a plan asks of the GPU: frames per second × pixels per frame. */
+const workOf = (fps: number, h: number) => fps * h * h;
+
+/** `ceil`: a plan at or above this load lagged recently; stay below it. */
+function plan(p: BoostProfile, c: Calib, m: Media, ceil = Infinity): BoostPlan & { maxHeight: number } {
   const scale = speedScale[calibKey(p)] ?? 1;
   const src = m.srcFps > 1 ? m.srcFps : 23.976;
   const refresh = m.refresh > 20 ? Math.round(m.refresh) : 60;
@@ -407,8 +420,9 @@ function plan(p: BoostProfile, c: Calib, m: Media): BoostPlan & { maxHeight: num
 
   const pick = (h: number, auto: boolean): number | null => {
     const budget = share * speed(h);
-    if (!auto && userRate != null) return userRate <= budget ? userRate : null;
-    const fit = divisors.filter((f) => f <= budget);
+    const ok = (f: number) => f <= budget && workOf(f, h) < ceil;
+    if (!auto && userRate != null) return ok(userRate) ? userRate : null;
+    const fit = divisors.filter(ok);
     return fit.length ? Math.max(...fit) : null;
   };
 
@@ -460,6 +474,15 @@ let lastPlan: (BoostPlan & { maxHeight: number }) | null = null;
 let lag: { at: number; drops: number; bad: number } | null = null;
 let overNotice = false;
 
+/** Plans that lagged recently, per model/GPU: the GPU feedback loop must not
+ *  climb back to them for a while (stops up/down see-sawing). */
+const LAG_HOLD_MS = 10 * 60_000;
+const lagCeil = new Map<string, { work: number; until: number }>();
+function ceilFor(p: BoostProfile): number {
+  const e = lagCeil.get(calibKey(p));
+  return e && e.until > Date.now() ? e.work : Infinity;
+}
+
 const mpvSet = (name: string, value: unknown) => invoke("mpv_set_property", { name, value });
 const norm = (v: string) => v.replace(/\\\\/g, "/").replace(/\\/g, "/").toLowerCase();
 async function mpvGet(name: string): Promise<string> {
@@ -482,7 +505,21 @@ async function readMedia(): Promise<Media | null> {
   let refresh = await numProp("display-fps");
   if (!(refresh > 20)) refresh = await numProp("estimated-display-fps");
   if (!(refresh > 20)) refresh = 60;
-  return { srcHeight, srcFps: Math.round(srcFps * 1000) / 1000, refresh: Math.round(refresh) };
+  return { srcHeight, srcFps: Math.round(srcFps * 1000) / 1000, refresh: snapRefresh(refresh) };
+}
+
+const REFRESH_RATES = [50, 60, 75, 90, 100, 120, 144, 155, 160, 165, 170, 175, 180, 200, 240, 280, 300, 360, 480];
+let lastRefresh = 0;
+
+/** mpv's refresh estimate wobbles (239.6 one second, 240.3 the next). Each
+ *  change used to re-plan and reload the filter (a visible hitch), so snap to
+ *  the real panel rate and only move when the screen really changed. */
+function snapRefresh(hz: number): number {
+  const near = REFRESH_RATES.reduce((a, b) => (Math.abs(b - hz) < Math.abs(a - hz) ? b : a));
+  const snapped = Math.abs(near - hz) / near < 0.03 ? near : Math.round(hz);
+  if (lastRefresh && Math.abs(snapped - lastRefresh) / lastRefresh < 0.03) return lastRefresh;
+  lastRefresh = snapped;
+  return snapped;
 }
 
 async function removeAll() {
@@ -523,9 +560,10 @@ async function wantedVf(p: BoostProfile): Promise<string | null> {
   const media = await readMedia();
   if (!media) return appliedVf; // no video yet: keep whatever is there
   const c = await calibrate(p);
-  const sig = JSON.stringify([calibKey(p), p.fgMode, p.multiplier, p.target, p.procRes, p.maxGpu, media, speedScale[calibKey(p)] ?? 1]);
+  const ceil = ceilFor(p);
+  const sig = JSON.stringify([calibKey(p), p.fgMode, p.multiplier, p.target, p.procRes, p.maxGpu, media, speedScale[calibKey(p)] ?? 1, ceil]);
   if (sig !== planSig || !lastPlan) {
-    lastPlan = plan(p, c, media);
+    lastPlan = plan(p, c, media, ceil);
     planSig = sig;
     setState({ plan: lastPlan });
     if (lastPlan.overBudget && !overNotice) {
@@ -620,13 +658,24 @@ async function sync(): Promise<void> {
 // slower than measured right now (other apps, thermals): lower the plan.
 // ---------------------------------------------------------------------------
 
+/** True while the picture can't be judged: paused, seeking or waiting for
+ *  the network. Frame drops then come from the stream, not from the GPU. */
+async function stalled(): Promise<boolean> {
+  if ((await mpvGet("pause")) === "yes") return true;
+  if ((await mpvGet("paused-for-cache")) === "yes") return true;
+  if ((await mpvGet("seeking")) === "yes") return true;
+  const buffered = await numProp("demuxer-cache-duration");
+  // Less than 2 s buffered on a network stream: playback is starving.
+  return Number.isFinite(buffered) && buffered < 2 && (await mpvGet("demuxer-via-network")) === "yes";
+}
+
 async function checkLag() {
   const p = state.config.profile;
   if (!state.on || state.busy || p.frameGeneration !== "RIFE" || !appliedVf) {
     lag = null;
     return;
   }
-  if (Date.now() - vfAppliedAt < 8000 || (await mpvGet("pause")) === "yes") {
+  if (Date.now() - vfAppliedAt < 8000 || (await stalled())) {
     lag = null;
     return;
   }
@@ -646,12 +695,91 @@ async function checkLag() {
   lag = null;
 
   const key = calibKey(p);
+  // Don't let the GPU feedback loop climb back to this plan for a while.
+  if (lastPlan) lagCeil.set(key, { work: workOf(lastPlan.outFps, lastPlan.height), until: now + LAG_HOLD_MS });
+  gpuSamples = [];
   const before = speedScale[key] ?? 1;
   if (before <= 0.35) return;
   speedScale[key] = Math.max(0.35, before * 0.8);
   saveScales();
   console.warn("[boost] lagging", { rate: Number(rate.toFixed(1)), avsync, scale: speedScale[key], plan: lastPlan });
   setState({ notice: t("Boost lowered its load to keep playback smooth.") });
+  await runSync();
+}
+
+// ---------------------------------------------------------------------------
+// GPU feedback: the planner's GPU figure is a model; this reads the real use
+// (Windows' GPU engine counters, the number Task Manager shows) and corrects
+// the model so the GPU really works up to the user's limit, no more, no less.
+// ---------------------------------------------------------------------------
+
+const GPU_WINDOW = 8; // samples (~20 s at the 2.5 s watchdog pace)
+const GPU_SETTLE_MS = 15_000; // after a filter change, before trusting readings
+const GPU_RAISE_COOLDOWN_MS = 60_000; // between two upward steps (each one reloads the filter)
+let gpuSamples: number[] = [];
+let gpuPending = false;
+let gpuUnavailable = false;
+let lastRaiseAt = 0;
+
+async function checkGpu() {
+  const p = state.config.profile;
+  if (gpuUnavailable || gpuPending) return;
+  if (!state.on || state.busy || state.calibrating || p.frameGeneration !== "RIFE" || !appliedVf || !lastPlan) {
+    gpuSamples = [];
+    if (state.gpuNow != null) setState({ gpuNow: null });
+    return;
+  }
+  gpuPending = true;
+  let use: number | null = null;
+  try {
+    use = await invoke<number | null>("boost_gpu_usage");
+  } catch {
+    gpuUnavailable = true; // older backend: keep the model-only behaviour
+    return;
+  } finally {
+    gpuPending = false;
+  }
+  if (use == null || !Number.isFinite(use)) return;
+  setState({ gpuNow: Math.round(use) });
+  if (Date.now() - vfAppliedAt < GPU_SETTLE_MS || (await stalled())) {
+    gpuSamples = [];
+    return;
+  }
+  gpuSamples.push(use);
+  if (gpuSamples.length < GPU_WINDOW) return;
+  const avg = gpuSamples.reduce((a, b) => a + b, 0) / gpuSamples.length;
+  const peak = Math.max(...gpuSamples);
+  gpuSamples = [];
+
+  const pl = lastPlan;
+  const key = calibKey(p);
+  const scale = speedScale[key] ?? 1;
+  const over = peak > p.maxGpu + 4;
+  const under = peak < p.maxGpu - 10 && !pl.overBudget;
+  if (!over && !under) return;
+  if (under && Date.now() - lastRaiseAt < GPU_RAISE_COOLDOWN_MS) return;
+
+  // The planner assumes avg ≈ out / speed · 90 + 15. Solve it for the speed
+  // the GPU really shows right now and scale the model to match.
+  const share = Math.max(0.05, (avg - 15) / 90);
+  const modelShare = Math.max(0.05, (pl.gpu - 15) / 90);
+  const ratio = Math.min(1.3, Math.max(0.75, modelShare / share));
+  const next = Math.min(2, Math.max(0.35, scale * ratio));
+  if (Math.abs(next - scale) < 0.03) return;
+  if (under) {
+    // Only worth a filter reload if it buys a better plan.
+    const c = calibCache.get(key);
+    const media = await readMedia();
+    if (!c || !media) return;
+    speedScale[key] = next;
+    const better = plan(p, c, media, ceilFor(p));
+    speedScale[key] = scale;
+    if (workOf(better.outFps, better.height) <= workOf(pl.outFps, pl.height)) return;
+    lastRaiseAt = Date.now();
+  }
+  speedScale[key] = next;
+  saveScales();
+  console.warn("[boost] gpu feedback", { avg: Math.round(avg), peak: Math.round(peak), limit: p.maxGpu, scale: next, plan: pl });
   await runSync();
 }
 
@@ -758,6 +886,10 @@ export function boostAttach(): () => void {
   lastPlan = null;
   lag = null;
   overNotice = false;
+  gpuSamples = [];
+  lastRaiseAt = 0;
+  lastRefresh = 0;
+  setState({ gpuNow: null });
   const onVsError = (e: Event) => {
     if (!state.on || state.config.profile.frameGeneration !== "RIFE" || fgFailed) return;
     fgFailed = true;
@@ -777,7 +909,9 @@ export function boostAttach(): () => void {
     });
     // The watchdog only re-applies once playback is under way (see above).
     if (ready && state.on && !state.busy && startTimer == null) {
-      void runSync().then(() => checkLag());
+      void runSync()
+        .then(() => checkLag())
+        .then(() => checkGpu());
     }
   }, 2500);
   let startTimer: number | null = null;
@@ -811,7 +945,7 @@ export function boostAttach(): () => void {
     appliedVf = null;
     appliedSmooth = false;
     appliedSync = false;
-    setState({ plan: null });
+    setState({ plan: null, gpuNow: null });
     if (!state.config.remember && state.on) {
       setState({ on: false });
       persistOn(false);
