@@ -23,7 +23,6 @@ Harbor Frame Generation is a build of [Harbor](docs/HARBOR-UPSTREAM.md) (a deskt
 | **Smooth mode** | Light frame blending to your screen's refresh rate. Works on any GPU. |
 | **Upscaling** | FSR, NIS or CAS shaders with adjustable sharpness. |
 | **GPU limit you can trust** | You set a limit (default 80 %). Boost reads the real GPU use, the same number Task Manager shows, and keeps the GPU working right up to that limit: no lag, and no unused power. |
-| **Head start** *(new)* | RIFE works up to 2 seconds ahead of the picture on screen, the way a video buffers before you reach it. Heavy scenes and short GPU spikes are absorbed by the frames already made, so they never show as a stutter. |
 | **Clearer home banner** *(new)* | The featured film or series at the top of the home page is taller and brighter, with lighter shading over the picture, and a bar under it fills up until the next title comes. |
 
 ## Install
@@ -42,7 +41,6 @@ The first time you switch frame generation on, about 60 MB of runtime (Python, V
 | Output | **Auto** | Picks the smoothest frame rate that fits your GPU and divides your refresh rate evenly (240 Hz → 48 / 60 / 80 fps). |
 | Processing resolution | **Auto** | Up to 1080p. 4K and 1440p videos are interpolated at 1080p and scaled back up, because RIFE is 3× slower at 1440p and 11× slower at 4K. |
 | GPU limit | **80 %** | Room for the decoder, the renderer and anything else running. Raise it if the PC does nothing else while you watch. |
-| Head start | **1 s** | Enough to smooth out heavy scenes. 2 s absorbs longer spikes but uses more memory (about 1-2 GB at 1080p) and takes a moment longer to start after a seek. Off keeps only the few frames mpv needs next. |
 
 The settings panel shows what Boost is doing right now, for example `2160p → 1080p · 60 fps · GPU 78% / 80%`: source and processing resolution, output frame rate, and **real** GPU use against your limit.
 
@@ -62,7 +60,7 @@ flowchart LR
 
 1. **Calibration.** Once per GPU and model, Boost measures how many frames per second RIFE makes at 720p and 1080p (a 3-4 second pause the first time).
 2. **Planning.** For every video it picks the processing resolution and an output frame rate that is a whole divisor of your refresh rate, so every frame stays on screen for the same time (no judder).
-3. **Paced work and head start.** mpv asks VapourSynth for frames ahead of the one on screen, with a deep buffer, so the GPU works at an even pace instead of 100 % bursts that starve the renderer. With **Head start** on, mpv keeps decoding and RIFE keeps making frames up to 1 or 2 seconds ahead (at most 120 frames in flight), so a slow moment is covered by frames that are already finished.
+3. **Paced work.** mpv asks VapourSynth for a few frames at a time with a deep buffer, so the GPU works at an even pace instead of 100 % bursts that starve the renderer.
 4. **Real GPU feedback.** While you watch, Boost reads the GPU's real use every few seconds (nvidia-smi on NVIDIA cards, Windows GPU engine counters on others). Well under your limit → it raises the frame rate or resolution. Over the limit → it lowers them.
 5. **Lag guard.** If frames still drop, the load is lowered and that plan is blocked for 10 minutes so Boost doesn't climb straight back to it.
 

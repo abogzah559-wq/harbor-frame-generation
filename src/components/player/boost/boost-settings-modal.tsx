@@ -402,21 +402,6 @@ export function BoostSettingsModal({ onClose }: { onClose: () => void }) {
                 </Field>
 
                 <Field
-                  label={t("Head start")}
-                  hint={t("RIFE works this far ahead of the picture, so heavy scenes never stutter. Uses more memory and takes a moment longer after a seek.")}
-                >
-                  <Pills
-                    value={p.lookahead ?? 0}
-                    options={[
-                      { value: 0, label: t("Off") },
-                      { value: 1, label: t("1 s") },
-                      { value: 2, label: t("2 s") },
-                    ]}
-                    onChange={(v) => set({ lookahead: v })}
-                  />
-                </Field>
-
-                <Field
                   label={t("GPU limit")}
                   hint={t("Boost keeps total GPU use under this, lowering frame rate or resolution when needed.")}
                 >
