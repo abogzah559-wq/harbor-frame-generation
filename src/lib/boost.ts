@@ -599,16 +599,20 @@ async function wantedVf(p: BoostProfile): Promise<string | null> {
   return path.replace(/\\/g, "/");
 }
 
-/** Frames for the head start: output frames requested ahead, and source
- *  frames buffered for them. At most 120 in flight (about 2 s at 60 fps),
- *  which keeps memory around 1-2 GB at 1080p. */
-function lookaheadFrames(p: BoostProfile, pl: BoostPlan | null): { out: number; src: number } {
-  const sec = Math.max(0, Math.min(3, p.lookahead ?? 0));
-  if (!sec || !pl) return { out: 0, src: 0 };
-  return {
-    out: Math.min(120, Math.ceil(pl.outFps * sec)),
-    src: Math.min(90, Math.ceil(pl.srcFps * sec)),
-  };
+/** vapoursynth filter sizes. mpv requests `concurrent-frames` output
+ *  frames ahead of the picture, in order, and holds the finished ones until
+ *  they are shown: that window is the head start (mpv allows at most 99).
+ *  Its input buffer is `buffered-frames` × `concurrent-frames` decoded
+ *  frames, so with a long window `buffered-frames` has to shrink: 10 × 48
+ *  would hold ~480 source frames (gigabytes at 1440p) and stall the PC. */
+function filterSizes(p: BoostProfile, pl: BoostPlan | null): { conc: number; buffered: number } {
+  const base = { conc: Math.min(6, p.gpuThreads + 1), buffered: 10 };
+  const sec = Math.max(0, Math.min(2, p.lookahead ?? 0));
+  if (!sec || !pl) return base;
+  const conc = Math.max(base.conc, Math.min(96, Math.ceil(pl.outFps * sec)));
+  // source frames the window reaches into, plus RIFE's neighbours and slack
+  const input = Math.ceil(pl.srcFps * sec) + 12;
+  return { conc, buffered: Math.max(1, Math.ceil(input / conc)) };
 }
 
 /** Make mpv match the current config (adds what's missing, removes what's stale). */
@@ -634,11 +638,8 @@ async function sync(): Promise<void> {
   const vfPresent = (await mpvGet("vf")).includes("harborfg");
   if (vf) {
     // A few frames in flight + a deep buffer: steady GPU load, no bursts.
-    // With a head start, RIFE keeps working that far ahead of the picture
-    // (mpv feeds it decoded frames that far ahead and holds the results).
-    const ahead = lookaheadFrames(p, lastPlan);
-    const conc = Math.max(Math.min(6, p.gpuThreads + 1), ahead.out);
-    const buffered = 10 + ahead.src;
+    // With a head start, RIFE keeps working that far ahead of the picture.
+    const { conc, buffered } = filterSizes(p, lastPlan);
     const filter = `${VF_LABEL}:vapoursynth=file=[${vf}]:buffered-frames=${buffered}:concurrent-frames=${conc}`;
     if (appliedVf !== filter || !vfPresent) {
       await guardPosition();
