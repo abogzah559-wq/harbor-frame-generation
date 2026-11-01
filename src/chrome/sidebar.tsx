@@ -1,4 +1,4 @@
-import { ChevronDown, Lock } from "lucide-react";
+import { ChevronDown, Lock, Menu, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { HarborMark } from "@/components/icons/harbor-mark";
 import { ProfileChip } from "@/chrome/sidebar/profile-chip";
@@ -10,7 +10,6 @@ import { useParental, type LockableTab } from "@/lib/parental";
 import { useActiveKid } from "@/lib/profiles";
 import { useView, type View } from "@/lib/view";
 import { KidsSidebarDoodles } from "./kids-sidebar-doodles";
-import { CollapseToggle } from "@/chrome/sidebar/collapse-toggle";
 import { NAV_ITEMS, applyNavCustomization, type NavItem } from "@/chrome/nav-items";
 
 const PRIMARY_IDS = new Set(["home", "discover", "catalogs", "movies", "shows", "kids", "anime", "live", "vod"]);
@@ -27,15 +26,40 @@ export function Sidebar() {
     settings.theme.preset !== "custom" ? getThemeById(settings.theme.preset) : null;
   const customMark = themePreset?.logo?.mark ?? null;
   const customWordmark = themePreset?.logo?.wordmark ?? null;
-  const collapsed = settings.sidebarCollapsed;
+  // The rail shows icons only. The menu button opens it over the page with
+  // the labels; picking a page or clicking outside closes it again.
+  const [open, setOpen] = useState(false);
+  const collapsed = !open;
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+  const go = (v: View) => {
+    setOpen(false);
+    setView(v);
+  };
 
   return (
     <>
+      {/* keeps the rail's place in the layout; the rail itself floats so the
+          open menu covers the page instead of pushing it */}
+      <div aria-hidden className="w-[72px] shrink-0" />
+      <div
+        aria-hidden
+        onClick={() => setOpen(false)}
+        className={`fixed inset-0 z-[59] bg-black/45 backdrop-blur-[3px] transition-opacity duration-300 ${
+          open && !chromeHidden ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
       <aside
         aria-hidden={chromeHidden}
         data-harbor-sidebar
-        className={`relative z-[60] flex w-[72px] shrink-0 flex-col border-e border-edge-soft bg-canvas transition-[opacity,transform,width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] ${
-          collapsed ? "" : "lg:w-60"
+        className={`absolute inset-y-0 start-0 z-[60] flex w-[72px] flex-col border-e border-edge-soft bg-canvas transition-[opacity,transform,width,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] ${
+          open ? "w-64 shadow-[0_0_80px_rgba(0,0,0,0.65)]" : ""
         } ${
           chromeHidden
             ? "pointer-events-none -translate-x-2 rtl:translate-x-2 opacity-0"
@@ -45,31 +69,41 @@ export function Sidebar() {
         {kid && <KidsSidebarDoodles />}
         <div
           data-tauri-drag-region
-          className={`flex h-20 shrink-0 items-center justify-center gap-0.5 px-3 text-ink ${
-            collapsed ? "" : "lg:justify-start lg:px-7"
+          className={`flex h-20 shrink-0 items-center gap-0.5 px-3 text-ink ${
+            collapsed ? "justify-center" : "justify-start ps-4 pe-3"
           }`}
         >
-          {customMark ? (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-label={open ? t("Collapse sidebar") : t("Expand sidebar")}
+            aria-expanded={open}
+            title={open ? t("Collapse sidebar") : t("Expand sidebar")}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-elevated/60 hover:text-ink"
+          >
+            {open ? <X size={20} strokeWidth={1.9} /> : <Menu size={20} strokeWidth={1.9} />}
+          </button>
+          {!collapsed && (customMark ? (
             <img
               src={customMark}
               alt=""
               draggable={false}
-              className={`h-9 w-9 shrink-0 object-contain ${collapsed ? "" : "lg:h-10 lg:w-10"}`}
+              className="ms-2 h-9 w-9 shrink-0 object-contain"
             />
           ) : (
-            <HarborMark className={`h-9 w-9 shrink-0 ${collapsed ? "" : "lg:h-10 lg:w-10"}`} />
-          )}
+            <HarborMark className="ms-2 h-9 w-9 shrink-0" />
+          ))}
           {!collapsed &&
             (customWordmark ? (
               <img
                 src={customWordmark}
                 alt=""
                 draggable={false}
-                className="hidden h-8 w-auto object-contain lg:inline-block"
+                className="h-8 w-auto object-contain"
               />
             ) : kid ? (
               <span
-                className="hidden whitespace-nowrap text-[42px] font-bold leading-none tracking-tight lg:inline-flex lg:items-center"
+                className="inline-flex items-center whitespace-nowrap text-[34px] font-bold leading-none tracking-tight"
                 style={{
                   fontFamily: '"Fredoka", "Baloo 2", system-ui, sans-serif',
                   transform: "translateY(1px)",
@@ -87,7 +121,7 @@ export function Sidebar() {
               </span>
             ) : (
               <span
-                className="hidden whitespace-nowrap text-[44px] font-medium leading-none tracking-tight lg:inline"
+                className="whitespace-nowrap text-[34px] font-medium leading-none tracking-tight"
                 style={{
                   fontFamily: '"Fraunces", "Iowan Old Style", "Georgia", serif',
                   transform: "translateY(2px)",
@@ -106,11 +140,14 @@ export function Sidebar() {
         </div>
         <ScrollableNav
           view={view}
-          setView={setView}
+          setView={go}
           locked={locked}
           collapsed={collapsed}
           hiddenTabs={hiddenTabs}
-          onPinNav={(v) => setPendingPinView(v)}
+          onPinNav={(v) => {
+            setOpen(false);
+            setPendingPinView(v);
+          }}
         />
         <div className={`relative p-2 ${collapsed ? "" : "lg:p-4"}`}>
           <div
@@ -119,9 +156,6 @@ export function Sidebar() {
               collapsed ? "" : "lg:inset-x-4"
             }`}
           />
-          <div className={`flex pb-1 ${collapsed ? "justify-center" : ""}`}>
-            <CollapseToggle collapsed={collapsed} />
-          </div>
           {locked ? (
             <div
               className={`flex w-full items-center justify-center gap-3 rounded-xl py-2.5 ${
@@ -314,7 +348,7 @@ function NavItem({
       title={gated ? t("chrome.lockedShort", { label: text }) : text}
       className={`relative flex items-center justify-center gap-4 transition-colors duration-150 ${
         big ? "h-[68px] rounded-2xl text-[20px] font-bold" : "h-14 rounded-xl text-[16px]"
-      } ${collapsed ? "" : big ? "lg:justify-start lg:px-5" : "lg:justify-start lg:px-4"} ${
+      } ${collapsed ? "" : big ? "justify-start px-5" : "justify-start px-4"} ${
         collapsed
           ? active
             ? "text-accent"
@@ -332,7 +366,7 @@ function NavItem({
           </span>
         )}
       </span>
-      {!collapsed && <span className="hidden lg:inline">{text}</span>}
+      {!collapsed && <span className="truncate">{text}</span>}
     </button>
   );
 }

@@ -85,6 +85,7 @@ export function loadStoredSettings(rawKey: string = STORAGE_KEY): Settings {
   try {
     const parsed = JSON.parse(raw) as Partial<Settings> & {
       _subStyleV2?: boolean;
+      _heroFullV1?: boolean;
       _subAssForceV1?: boolean;
       _subAssRespectV2?: boolean;
       _mpvEmbedV2?: boolean;
@@ -134,6 +135,11 @@ export function loadStoredSettings(rawKey: string = STORAGE_KEY): Settings {
     if (!parsed._anime4kIndicatorOffV1) {
       parsed.playerAnime4kIndicator = false;
       parsed._anime4kIndicatorOffV1 = true;
+    }
+    if (!parsed._heroFullV1) {
+      // the home banner now runs edge to edge by default
+      parsed.heroFull = true;
+      parsed._heroFullV1 = true;
     }
     if (!parsed._subStyleV2) {
       if (parsed.subFontSize === 55) parsed.subFontSize = DEFAULT.subFontSize;

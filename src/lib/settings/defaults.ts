@@ -72,7 +72,7 @@ export const DEFAULT: Settings = {
   detailTrailerAutoplay: false,
   detailTrailerAudio: false,
   heroShadow: 100,
-  heroFull: false,
+  heroFull: true,
   heroFullQuality: true,
   resumePrompt: false,
   resumePlayback: true,

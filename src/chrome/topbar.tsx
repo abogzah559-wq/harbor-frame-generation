@@ -43,7 +43,7 @@ export function Topbar({ connecting = false }: { connecting?: boolean } = {}) {
   const sidebarOffset =
     layout === "stremio"
       ? "ps-[80px]"
-      : settings.sidebarCollapsed
+      : layout === "sidebar" || settings.sidebarCollapsed
         ? "ps-[84px]"
         : "ps-[84px] lg:ps-[260px]";
   const searchWidth = canGoBack
@@ -83,6 +83,21 @@ export function Topbar({ connecting = false }: { connecting?: boolean } = {}) {
             </div>
           )}
           {!onLiveRoot && !connecting && <BackChrome />}
+          {!onLiveRoot && !connecting && !canGoBack && !kid && layout === "sidebar" && !sidebarHidden && (
+            <div className="pointer-events-none flex items-center gap-2 text-white [filter:drop-shadow(0_2px_10px_rgba(0,0,0,0.85))]">
+              <HarborMark className="h-8 w-8 shrink-0" />
+              <span
+                className="whitespace-nowrap text-[30px] font-medium leading-none tracking-tight"
+                style={{ fontFamily: '"Fraunces", "Iowan Old Style", "Georgia", serif', transform: "translateY(2px)" }}
+              >
+                Harb
+                <span className="inline-block" style={{ transform: "rotate(7deg)", transformOrigin: "50% 65%" }}>
+                  o
+                </span>
+                r
+              </span>
+            </div>
+          )}
         </div>
         <div
           {...dragProps}
@@ -333,7 +348,7 @@ function SearchPill() {
       type="button"
       data-tauri-drag-region="false"
       onClick={() => setOpen(true)}
-      className="harbor-search-pill flex h-11 w-full items-center gap-3 rounded-full border border-edge-soft/60 bg-elevated/80 px-5 text-start opacity-80 transition-[opacity,background-color] duration-200 hover:bg-elevated hover:opacity-100"
+      className="harbor-search-pill harbor-search-solid flex h-11 w-full items-center gap-3 rounded-full border border-edge-soft/60 bg-elevated/80 px-5 text-start opacity-80 transition-[opacity,background-color] duration-200 hover:bg-elevated hover:opacity-100"
     >
       <Search size={16} strokeWidth={1.75} className="text-ink-subtle" />
       <span className="flex-1 truncate text-[14px] text-ink-subtle">{t("search.placeholder")}</span>
@@ -359,7 +374,7 @@ function Control({
     <button
       aria-label={label}
       onClick={onClick}
-      className={`harbor-win-control ${danger ? "harbor-win-close" : ""} flex h-11 w-12 items-center justify-center rounded-xl bg-elevated/70 text-ink-muted transition-colors duration-150 ${
+      className={`harbor-win-control harbor-win-solid ${danger ? "harbor-win-close" : ""} flex h-11 w-12 items-center justify-center rounded-xl bg-elevated/70 text-ink-muted transition-colors duration-150 ${
         danger ? "hover:bg-[#e5484d] hover:text-white" : "hover:bg-elevated hover:text-ink"
       }`}
     >

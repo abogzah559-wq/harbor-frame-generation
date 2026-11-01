@@ -1753,6 +1753,48 @@ html[data-theme-card="crunch"][dir="rtl"] .harbor-profile-dropdown {
 
 /* Home hero: the active slide dot fills up until the next slide. */
 @keyframes harbor-hero-progress {
-  from { width: 0%; }
-  to { width: 100%; }
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.harbor-hero-fill {
+  transform-origin: left center;
+  will-change: transform;
+}
+[dir="rtl"] .harbor-hero-fill {
+  transform-origin: right center;
+}
+
+/* Top bar over pictures: search and window buttons sit on a dark glass
+   backing so they stay readable over any image, whatever the theme. The
+   extra selectors outrank theme rules that make them transparent. */
+header .harbor-search-pill.harbor-search-solid {
+  background-color: rgba(0, 0, 0, 0.55) !important;
+  background-image: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  backdrop-filter: blur(14px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.2) !important;
+  opacity: 1 !important;
+}
+header .harbor-search-pill.harbor-search-solid:hover {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+  border-color: rgba(255, 255, 255, 0.26) !important;
+}
+header .harbor-search-pill.harbor-search-solid span,
+header .harbor-search-pill.harbor-search-solid svg {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+header .harbor-win-control.harbor-win-solid {
+  background-color: rgba(0, 0, 0, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+header .harbor-win-control.harbor-win-solid:hover {
+  background-color: rgba(0, 0, 0, 0.75) !important;
+  color: #ffffff !important;
+}
+header .harbor-win-control.harbor-win-solid.harbor-win-close:hover {
+  background-color: var(--color-danger, #e5484d) !important;
+  border-color: transparent !important;
 }

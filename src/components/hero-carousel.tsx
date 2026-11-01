@@ -39,8 +39,10 @@ export function HeroCarousel({ slides, full = false, fullQuality = false }: { sl
   const widthRef = useRef(0);
 
   // The active dot's bar drives the rotation: when it is full the next
-  // slide comes, and it holds still while the hero is paused.
-  const running = !(paused || dragging || !inViewport || !pageVisible);
+  // slide comes. It keeps running under the mouse (a frozen bar looks like a
+  // hang) and only waits while the banner is dragged, off screen or hidden.
+  const running = !(dragging || !inViewport || !pageVisible);
+  void paused;
 
   useEffect(() => {
     if (active >= slides.length) setActive(0);
@@ -193,14 +195,16 @@ export function HeroCarousel({ slides, full = false, fullQuality = false }: { sl
               key={i}
               onClick={() => setActive(i)}
               aria-label={t("Slide {n}", { n: i + 1 })}
-              className={`relative h-1.5 overflow-hidden rounded-full transition-all duration-300 ${
-                i === active ? "w-12 bg-ink-muted/40" : "w-6 bg-ink-muted/70 hover:bg-ink-muted"
+              className={`relative h-[5px] overflow-hidden rounded-full shadow-[0_1px_6px_rgba(0,0,0,0.5)] transition-[width,background-color] duration-500 ease-out ${
+                i === active ? "w-14 bg-white/25" : "w-6 bg-white/35 hover:bg-white/60"
               }`}
             >
               {i === active && (
+                // scaled, not resized: the GPU animates it without relaying
+                // out the page every frame, so it moves smoothly
                 <span
-                  key={active}
-                  className="absolute inset-y-0 start-0 rounded-full bg-ink"
+                  key={`${active}-${slides.length}`}
+                  className="harbor-hero-fill absolute inset-0 rounded-full bg-accent"
                   style={{
                     animation: `harbor-hero-progress ${SLIDE_MS}ms linear forwards`,
                     animationPlayState: running ? "running" : "paused",

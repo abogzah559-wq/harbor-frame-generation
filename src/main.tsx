@@ -69,6 +69,11 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>,
 );
 
+// The main window always opens full screen (covers the taskbar).
+if (!isPip && !isModal && !isHdrOverlay && isWindowsDesktop()) {
+  void import("@/lib/fullscreen-state").then((m) => m.enterWindowFullscreen());
+}
+
 requestAnimationFrame(() => {
   const boot = document.getElementById("harbor-boot");
   if (!boot) return;
