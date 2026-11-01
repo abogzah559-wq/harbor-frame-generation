@@ -177,7 +177,7 @@ export const Hero = memo(function Hero({
   return (
     <section
       onClick={() => openMeta({ ...meta, logo: logo ?? meta.logo })}
-      className={`group relative cursor-pointer overflow-hidden bg-canvas ${full ? "h-[clamp(560px,82vh,920px)] rounded-none" : "h-[560px] rounded-[28px]"}`}
+      className={`group relative cursor-pointer overflow-hidden bg-canvas ${full ? "h-[clamp(560px,82vh,920px)] rounded-none" : "h-[clamp(600px,64vh,780px)] rounded-[28px]"}`}
       style={{ isolation: "isolate" }}
     >
       {bg && loadBackdrop && (
@@ -187,7 +187,7 @@ export const Hero = memo(function Hero({
           decoding="async"
           fetchPriority={active ? "high" : "low"}
           className={`absolute object-cover transition-opacity duration-500 ${full ? "inset-0 h-full w-full rounded-none" : "inset-[2px] h-[calc(100%-4px)] w-[calc(100%-4px)] rounded-[26px]"}`}
-          style={{ opacity: wantsPlayback && videoReady ? 0 : 0.9 }}
+          style={{ opacity: wantsPlayback && videoReady ? 0 : 1 }}
         />
       )}
       {trailerInfo && (
@@ -208,10 +208,10 @@ export const Hero = memo(function Hero({
         </div>
       )}
       <div
-        className="absolute inset-0 bg-gradient-to-r from-canvas via-canvas/85 via-50% to-transparent rtl:bg-gradient-to-l"
+        className="absolute inset-0 bg-gradient-to-r from-canvas via-canvas/60 via-35% to-transparent to-65% rtl:bg-gradient-to-l"
         style={{ opacity: settings.heroShadow / 100 }}
       />
-      <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-canvas via-canvas/70 via-50% to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-canvas via-canvas/50 via-40% to-transparent" />
       <MetaAwardsCorner meta={meta} imdbId={resolvedImdb} />
 
       <div className={`relative flex h-full flex-col justify-center p-14 ${full ? "pt-28 lg:pt-32" : ""}`}>

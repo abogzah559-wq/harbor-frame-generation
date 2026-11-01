@@ -14,6 +14,11 @@ const boost: Record<string, string> = {
   "Blends frames to your screen's refresh rate. Very light, works on any GPU.":
     "يمزج الفريمات على تردّد شاشتك. خفيف جدًا ويشتغل على أي كرت.",
   "Stay on for the next episodes": "يبقى شغّال للحلقات الجاية",
+  "Head start": "يسبق المشهد",
+  "RIFE works this far ahead of the picture, so heavy scenes never stutter. Uses more memory and takes a moment longer after a seek.":
+    "RIFE يجهّز الفريمات قبل ما توصل لها بهالمدة، فالمشاهد الثقيلة ما تقطّع. يستهلك ذاكرة أكثر، وبعد التقديم ياخذ لحظة زيادة.",
+  "1 s": "ثانية",
+  "2 s": "ثانيتين",
   Downloading: "جارٍ تحميل",
   "Working…": "جارٍ التجهيز…",
   "About 60 MB downloads once, the first time you turn it on.": "يتحمّل تقريبًا 60 ميجا مرة وحدة، أول ما تشغّله.",

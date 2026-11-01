@@ -51,6 +51,10 @@ export type BoostProfile = {
   procRes: BoostProcRes;
   /** Upper limit for total GPU use, in percent. */
   maxGpu: number;
+  /** Seconds of video RIFE works ahead of the picture on screen (0 = only
+   *  the few frames mpv needs next). A head start soaks up heavy scenes and
+   *  GPU spikes, so a slow moment never shows as a stutter. */
+  lookahead: number;
   scalingType: "Off" | "FSR" | "NIS" | "CAS";
   sharpness: number;
 };
@@ -75,6 +79,7 @@ export const DEFAULT_BOOST_PROFILE: BoostProfile = {
   gpuThreads: 3,
   procRes: "auto",
   maxGpu: 80,
+  lookahead: 1,
   scalingType: "FSR",
   sharpness: 9,
 };
@@ -338,6 +343,7 @@ async function calibrate(p: BoostProfile, force = false): Promise<Calib> {
         await guardPosition();
         await mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
         appliedVf = null;
+        appliedVfPath = null;
       }
       if (!wasPaused) await mpvSet("pause", true).catch(() => {});
       const c = await invoke<Calib>("boost_calibrate", { ...args, force: true });
@@ -465,6 +471,8 @@ function plan(p: BoostProfile, c: Calib, m: Media, ceil = Infinity): BoostPlan &
 const VF_LABEL = "@harborfg";
 let appliedShader: string | null = null;
 let appliedVf: string | null = null;
+/** Script path of the applied filter (appliedVf is the whole filter string). */
+let appliedVfPath: string | null = null;
 let appliedSmooth = false;
 let appliedSync = false;
 let fgFailed = false;
@@ -532,6 +540,7 @@ async function removeAll() {
     await mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
     await hwdecRestore();
     appliedVf = null;
+    appliedVfPath = null;
   }
   await restoreSync();
   if (appliedSmooth) {
@@ -558,7 +567,7 @@ async function wantedShader(p: BoostProfile): Promise<string | null> {
 async function wantedVf(p: BoostProfile): Promise<string | null> {
   if (p.frameGeneration !== "RIFE" || fgFailed) return null;
   const media = await readMedia();
-  if (!media) return appliedVf; // no video yet: keep whatever is there
+  if (!media) return appliedVfPath; // no video yet: keep whatever is there
   const c = await calibrate(p);
   const ceil = ceilFor(p);
   const sig = JSON.stringify([calibKey(p), p.fgMode, p.multiplier, p.target, p.procRes, p.maxGpu, media, speedScale[calibKey(p)] ?? 1, ceil]);
@@ -590,6 +599,18 @@ async function wantedVf(p: BoostProfile): Promise<string | null> {
   return path.replace(/\\/g, "/");
 }
 
+/** Frames for the head start: output frames requested ahead, and source
+ *  frames buffered for them. At most 120 in flight (about 2 s at 60 fps),
+ *  which keeps memory around 1-2 GB at 1080p. */
+function lookaheadFrames(p: BoostProfile, pl: BoostPlan | null): { out: number; src: number } {
+  const sec = Math.max(0, Math.min(3, p.lookahead ?? 0));
+  if (!sec || !pl) return { out: 0, src: 0 };
+  return {
+    out: Math.min(120, Math.ceil(pl.outFps * sec)),
+    src: Math.min(90, Math.ceil(pl.srcFps * sec)),
+  };
+}
+
 /** Make mpv match the current config (adds what's missing, removes what's stale). */
 async function sync(): Promise<void> {
   if (!state.on) {
@@ -612,14 +633,20 @@ async function sync(): Promise<void> {
   const vf = await wantedVf(p);
   const vfPresent = (await mpvGet("vf")).includes("harborfg");
   if (vf) {
-    if (appliedVf !== vf || !vfPresent) {
+    // A few frames in flight + a deep buffer: steady GPU load, no bursts.
+    // With a head start, RIFE keeps working that far ahead of the picture
+    // (mpv feeds it decoded frames that far ahead and holds the results).
+    const ahead = lookaheadFrames(p, lastPlan);
+    const conc = Math.max(Math.min(6, p.gpuThreads + 1), ahead.out);
+    const buffered = 10 + ahead.src;
+    const filter = `${VF_LABEL}:vapoursynth=file=[${vf}]:buffered-frames=${buffered}:concurrent-frames=${conc}`;
+    if (appliedVf !== filter || !vfPresent) {
       await guardPosition();
       if (vfPresent) await mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
       await hwdecForFg();
-      // A few frames in flight + a deep buffer: steady GPU load, no bursts.
-      const conc = Math.min(6, p.gpuThreads + 1);
-      await mpvCmd(["vf", "add", `${VF_LABEL}:vapoursynth=file=[${vf}]:buffered-frames=10:concurrent-frames=${conc}`]);
-      appliedVf = vf;
+      await mpvCmd(["vf", "add", filter]);
+      appliedVf = filter;
+      appliedVfPath = vf;
       vfAppliedAt = Date.now();
       lag = null;
       console.warn("[boost] apply", { model: p.model, threads: p.gpuThreads, plan: lastPlan });
@@ -634,6 +661,7 @@ async function sync(): Promise<void> {
     await mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {});
     await hwdecRestore();
     appliedVf = null;
+    appliedVfPath = null;
     await restoreSync();
     setState({ plan: null });
   }
@@ -880,6 +908,7 @@ export function boostAttach(): () => void {
   lastPosAt = 0;
   appliedShader = null;
   appliedVf = null;
+  appliedVfPath = null;
   appliedSmooth = false;
   appliedSync = false;
   planSig = "";
@@ -898,6 +927,7 @@ export function boostAttach(): () => void {
     void guardPosition().then(() => mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {}));
     void hwdecRestore();
     appliedVf = null;
+    appliedVfPath = null;
   };
   window.addEventListener("harbor:vapoursynth-error", onVsError);
   let ready = !state.on;
@@ -943,6 +973,7 @@ export function boostAttach(): () => void {
     if (startTimer != null) window.clearTimeout(startTimer);
     appliedShader = null;
     appliedVf = null;
+    appliedVfPath = null;
     appliedSmooth = false;
     appliedSync = false;
     setState({ plan: null, gpuNow: null });
