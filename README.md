@@ -7,13 +7,11 @@
 
 **AI frame generation and GPU upscaling built into Harbor's player, for Windows.**
 
-[English](#english) · [العربية](#arabic) · [Download](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest)
+[Download](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest)
 
 </div>
 
 ---
-
-<a name="english"></a>
 
 ## What it is
 
@@ -25,6 +23,8 @@ Harbor Frame Generation is a build of [Harbor](docs/HARBOR-UPSTREAM.md) (a deskt
 | **Smooth mode** | Light frame blending to your screen's refresh rate. Works on any GPU. |
 | **Upscaling** | FSR, NIS or CAS shaders with adjustable sharpness. |
 | **GPU limit you can trust** | You set a limit (default 80 %). Boost reads the real GPU use, the same number Task Manager shows, and keeps the GPU working right up to that limit: no lag, and no unused power. |
+| **Head start** *(new)* | RIFE works up to 2 seconds ahead of the picture on screen, the way a video buffers before you reach it. Heavy scenes and short GPU spikes are absorbed by the frames already made, so they never show as a stutter. |
+| **Clearer home banner** *(new)* | The featured film or series at the top of the home page is taller and brighter, with lighter shading over the picture, and a bar under it fills up until the next title comes. |
 
 ## Install
 
@@ -42,6 +42,7 @@ The first time you switch frame generation on, about 60 MB of runtime (Python, V
 | Output | **Auto** | Picks the smoothest frame rate that fits your GPU and divides your refresh rate evenly (240 Hz → 48 / 60 / 80 fps). |
 | Processing resolution | **Auto** | Up to 1080p. 4K and 1440p videos are interpolated at 1080p and scaled back up, because RIFE is 3× slower at 1440p and 11× slower at 4K. |
 | GPU limit | **80 %** | Room for the decoder, the renderer and anything else running. Raise it if the PC does nothing else while you watch. |
+| Head start | **1 s** | Enough to smooth out heavy scenes. 2 s absorbs longer spikes but uses more memory (about 1-2 GB at 1080p) and takes a moment longer to start after a seek. Off keeps only the few frames mpv needs next. |
 
 The settings panel shows what Boost is doing right now, for example `2160p → 1080p · 60 fps · GPU 78% / 80%`: source and processing resolution, output frame rate, and **real** GPU use against your limit.
 
@@ -61,7 +62,7 @@ flowchart LR
 
 1. **Calibration.** Once per GPU and model, Boost measures how many frames per second RIFE makes at 720p and 1080p (a 3-4 second pause the first time).
 2. **Planning.** For every video it picks the processing resolution and an output frame rate that is a whole divisor of your refresh rate, so every frame stays on screen for the same time (no judder).
-3. **Paced work.** mpv asks VapourSynth for a few frames at a time with a deep buffer, so the GPU works at an even pace instead of 100 % bursts that starve the renderer.
+3. **Paced work and head start.** mpv asks VapourSynth for frames ahead of the one on screen, with a deep buffer, so the GPU works at an even pace instead of 100 % bursts that starve the renderer. With **Head start** on, mpv keeps decoding and RIFE keeps making frames up to 1 or 2 seconds ahead (at most 120 frames in flight), so a slow moment is covered by frames that are already finished.
 4. **Real GPU feedback.** While you watch, Boost reads the GPU's real use every few seconds (nvidia-smi on NVIDIA cards, Windows GPU engine counters on others). Well under your limit → it raises the frame rate or resolution. Over the limit → it lowers them.
 5. **Lag guard.** If frames still drop, the load is lowered and that plan is blocked for 10 minutes so Boost doesn't climb straight back to it.
 
@@ -90,6 +91,7 @@ Windows installers are built by the `windows-build` workflow. Pushing a tag such
 |---|---|
 | Planner, GPU feedback, lag guard | `src/lib/boost.ts` |
 | Settings panel | `src/components/player/boost/` |
+| Home banner | `src/components/hero.tsx`, `src/components/hero-carousel.tsx` |
 | Runtime install, VapourSynth script, calibration, GPU reading | `src-tauri/src/boost.rs` |
 
 ## Credits and license
@@ -99,66 +101,3 @@ Built on [Harbor](docs/HARBOR-UPSTREAM.md) (MIT). Frame generation uses [RIFE](h
 Harbor is a player. It hosts, indexes and ships no media and bundles no content addons. Follow the laws where you live.
 
 <p align="right"><a href="#top">↑ Top</a></p>
-
----
-
-<a name="arabic"></a>
-
-<div dir="rtl">
-
-## وش هو البرنامج
-
-**Harbor Frame Generation** نسخة من [Harbor](docs/HARBOR-UPSTREAM.md) (برنامج لمشاهدة الأفلام والمسلسلات عن طريق إضافات Stremio) تضيف ميزة **Boost** للمشغّل:
-
-| الميزة | وش تسوي |
-|---|---|
-| **توليد فريمات بالذكاء الاصطناعي (RIFE)** | تصنع فريمات جديدة بين الفريمات الأصلية. الفيلم اللي على 24 فريم يصير 48 أو 60 أو أكثر. تشتغل داخل مشغّل Harbor نفسه بدون أي برنامج ثاني. |
-| **الوضع السلس** | دمج خفيف للفريمات على تردّد شاشتك. يشتغل على أي كرت. |
-| **التكبير** | FSR أو NIS أو CAS مع التحكم بالحدّة. |
-| **حد استهلاك حقيقي للكرت** | تختار الحد (الافتراضي 80%). Boost يقرأ استهلاك الكرت الحقيقي، نفس الرقم اللي يطلع في إدارة المهام، ويخلي الكرت يشتغل لين هذا الحد بالضبط: بدون تقطيع، وبدون قوة ضايعة. |
-
-## التثبيت
-
-1. حمّل ملف `Harbor_…_x64-setup.exe` من [آخر إصدار](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest).
-2. الملف غير موقّع، فممكن يطلع لك تحذير ويندوز الأزرق: اضغط **More info** وبعدها **Run anyway**.
-3. شغّل أي فيلم أو حلقة واضغط زر **✦** في شريط المشغّل. الترس اللي جنبه يفتح الإعدادات.
-
-أول مرة تشغّل توليد الفريمات يتحمّل تقريبًا 60 ميجا مرة وحدة بس.
-
-## الإعدادات اللي ننصح فيها
-
-| الإعداد | ننصح بـ | ليش |
-|---|---|---|
-| النموذج | **RIFE 4.6** | الأسرع وجودته ممتازة. النماذج الأثقل تشتغل بعد، بس Boost بينزّل الفريمات أو الدقة عشان يبقى تحت حدك. |
-| الناتج | **تلقائي** | يختار أنعم عدد فريمات يناسب كرتك وينقسم على تردّد شاشتك بالتساوي (240 هرتز ← 48 أو 60 أو 80). |
-| دقة المعالجة | **تلقائي** | حتى 1080p. أفلام 4K و2K تتعالج على 1080p وبعدين تتكبّر وترجع، لأن RIFE أبطأ 3 مرات على 2K و11 مرة على 4K. |
-| حد استهلاك الكرت | **80%** | يترك مساحة لفك الفيديو والعرض وأي برنامج ثاني. ارفعه لو الجهاز ما يسوي شي ثاني وقت المشاهدة. |
-
-لوحة الإعدادات توريك وش يسوي Boost الحين، مثلًا `2160p → 1080p · 60 fps · GPU 78% / 80%`: دقة الفيديو ودقة المعالجة، وعدد الفريمات، واستهلاك الكرت **الحقيقي** مقابل حدك.
-
-## كيف يشتغل
-
-1. **القياس:** مرة وحدة لكل كرت ونموذج، Boost يقيس كم فريم يطلّع RIFE في الثانية على 720p و1080p (وقفة 3-4 ثواني أول مرة بس).
-2. **التخطيط:** لكل فيديو يختار دقة المعالجة وعدد فريمات ينقسم على تردّد شاشتك بالتساوي، عشان كل فريم يبقى على الشاشة نفس المدة (بدون رجفة).
-3. **شغل منتظم:** المشغّل يطلب الفريمات على دفعات صغيرة مع مخزن كبير، فالكرت يشتغل بوتيرة ثابتة بدل قفزات 100% تخنق العرض.
-4. **قراءة الكرت الحقيقية:** وقت المشاهدة يقرأ Boost استهلاك الكرت كل كم ثانية (nvidia-smi لكروت NVIDIA، وعدّادات ويندوز للباقي). لو الكرت تحت الحد بكثير يرفع الفريمات أو الدقة، ولو تعدّى الحد ينزّلها.
-5. **حماية من التقطيع:** لو ضاعت فريمات ينزّل الحمل، ويمنع الرجوع لنفس الإعداد 10 دقايق عشان ما يتذبذب.
-
-## حل المشاكل
-
-| المشكلة | الحل |
-|---|---|
-| تقطيع أو نزول جودة وقت تحميل الفيلم | انحلّت في boost-4: الفريمات اللي تضيع بسبب بطء النت ما صارت تنحسب على الكرت. |
-| الجودة نازلة مع إن كرتك قوي | افتح الإعدادات واضغط **قِس الحين**. وboost-4 يرفع الجودة لحاله إذا الكرت فيه مجال. |
-| رسالة `lua51.dll was not found` | انحلّت في boost-3. لو عندك نسخة أقدم، فك `mpv-fix-x64.zip` من الإصدار داخل `%LOCALAPPDATA%\Harbor`. |
-| توليد الفريمات يشتغل على الكرت الغلط | اختر كرتك من **GPU** في الإعدادات المتقدمة. |
-
-## الحقوق والترخيص
-
-مبني على [Harbor](docs/HARBOR-UPSTREAM.md) (رخصة MIT). توليد الفريمات يستخدم RIFE عن طريق VapourSynth-RIFE-ncnn-Vulkan وVapourSynth. ملفات التكبير من agyild. المشروع تحت [رخصة MIT](LICENSE).
-
-Harbor مجرد مشغّل: ما يستضيف ولا يوفّر أي محتوى ولا يجي معه أي إضافات محتوى. التزم بقوانين بلدك.
-
-</div>
-
-<p align="right"><a href="#top">↑ للأعلى</a></p>
