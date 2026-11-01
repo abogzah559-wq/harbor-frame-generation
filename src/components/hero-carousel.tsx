@@ -11,6 +11,8 @@ const DRAG_BUDGE = 6;
 const SNAP_RATIO = 0.18;
 const FLICK_VELOCITY = 0.45;
 const SLIDE_GAP_PX = 22;
+/** How long each slide stays; the active dot fills up over this time. */
+const SLIDE_MS = 13000;
 
 export function HeroCarousel({ slides, full = false, fullQuality = false }: { slides: Slide[]; full?: boolean; fullQuality?: boolean }) {
   const [active, setActive] = useState(0);
@@ -36,11 +38,9 @@ export function HeroCarousel({ slides, full = false, fullQuality = false }: { sl
   const moved = useRef(false);
   const widthRef = useRef(0);
 
-  useEffect(() => {
-    if (paused || dragging || !inViewport || !pageVisible || slides.length < 2) return;
-    const id = setInterval(() => setActive((a) => (a + 1) % slides.length), 13000);
-    return () => clearInterval(id);
-  }, [paused, dragging, inViewport, pageVisible, slides.length]);
+  // The active dot's bar drives the rotation: when it is full the next
+  // slide comes, and it holds still while the hero is paused.
+  const running = !(paused || dragging || !inViewport || !pageVisible);
 
   useEffect(() => {
     if (active >= slides.length) setActive(0);
@@ -193,10 +193,22 @@ export function HeroCarousel({ slides, full = false, fullQuality = false }: { sl
               key={i}
               onClick={() => setActive(i)}
               aria-label={t("Slide {n}", { n: i + 1 })}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === active ? "w-12 bg-ink" : "w-6 bg-ink-muted/70 hover:bg-ink-muted"
+              className={`relative h-1.5 overflow-hidden rounded-full transition-all duration-300 ${
+                i === active ? "w-12 bg-ink-muted/40" : "w-6 bg-ink-muted/70 hover:bg-ink-muted"
               }`}
-            />
+            >
+              {i === active && (
+                <span
+                  key={active}
+                  className="absolute inset-y-0 start-0 rounded-full bg-ink"
+                  style={{
+                    animation: `harbor-hero-progress ${SLIDE_MS}ms linear forwards`,
+                    animationPlayState: running ? "running" : "paused",
+                  }}
+                  onAnimationEnd={() => setActive((a) => (a + 1) % slides.length)}
+                />
+              )}
+            </button>
           ))}
         </div>
       )}

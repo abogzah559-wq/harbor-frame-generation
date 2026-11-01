@@ -1750,3 +1750,9 @@ html[data-theme-card="crunch"][dir="rtl"] .harbor-profile-dropdown {
   }
 }
 
+
+/* Home hero: the active slide dot fills up until the next slide. */
+@keyframes harbor-hero-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
