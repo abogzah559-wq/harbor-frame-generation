@@ -69,6 +69,10 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>,
 );
 
+if (!isPip && !isModal && !isHdrOverlay) {
+  void import("@/lib/smooth-wheel").then((m) => m.installSmoothWheel());
+}
+
 // The main window always opens full screen (covers the taskbar).
 if (!isPip && !isModal && !isHdrOverlay && isWindowsDesktop()) {
   void import("@/lib/fullscreen-state").then((m) => m.enterWindowFullscreen());

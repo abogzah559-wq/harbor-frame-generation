@@ -58,8 +58,8 @@ export function Sidebar() {
       <aside
         aria-hidden={chromeHidden}
         data-harbor-sidebar
-        className={`absolute inset-y-0 start-0 z-[60] flex w-[72px] flex-col border-e border-edge-soft bg-canvas transition-[opacity,transform,width,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] ${
-          open ? "w-64 shadow-[0_0_80px_rgba(0,0,0,0.65)]" : ""
+        className={`absolute inset-y-0 start-0 z-[60] flex flex-col overflow-hidden border-e border-edge-soft bg-canvas transition-[opacity,transform,width,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] ${
+          open ? "w-64 shadow-[0_0_80px_rgba(0,0,0,0.65)]" : "w-[72px]"
         } ${
           chromeHidden
             ? "pointer-events-none -translate-x-2 rtl:translate-x-2 opacity-0"
