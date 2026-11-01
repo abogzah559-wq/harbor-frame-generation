@@ -24,7 +24,8 @@ Harbor Frame Generation is a build of [Harbor](docs/HARBOR-UPSTREAM.md) (a deskt
 | **Upscaling** | FSR, NIS or CAS shaders with adjustable sharpness. |
 | **GPU limit you can trust** | You set a limit (default 80 %). Boost reads the real GPU use, the same number Task Manager shows, and keeps the GPU working right up to that limit: no lag, and no unused power. |
 | **Head start** *(new)* | RIFE works up to 2 seconds ahead of the picture on screen, the way a video buffers before you reach it. Heavy scenes and short GPU spikes are absorbed by the frames already made, so they never show as a stutter. |
-| **Clearer home banner** *(new)* | The featured film or series at the top of the home page is taller and brighter, with lighter shading over the picture, and a bar under it fills up until the next title comes. |
+| **Cleaner layout** *(new)* | An icon-only side rail that opens over the page from a menu button, an edge-to-edge home banner, and a Harbor name, search bar and window buttons that stay readable over any picture. Harbor opens full screen. |
+| **Clearer home banner** | The featured film or series at the top of the home page is taller and brighter, with lighter shading over the picture, and a smooth bar under it fills up until the next title comes. |
 
 ## What Harbor does
 

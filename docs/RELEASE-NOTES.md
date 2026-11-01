@@ -1,6 +1,14 @@
-# Harbor Frame Generation boost-5
+# Harbor Frame Generation boost-6
 
 Harbor Frame Generation is a Windows build of [Harbor](https://github.com/harborstremio/harbor), a desktop app for watching films and series through Stremio addons, with **Boost** added to its built-in mpv player: AI frame generation, GPU upscaling and a GPU budget that keeps playback smooth. Everything runs inside Harbor; no other program is needed.
+
+## New in boost-6
+
+- **Icon rail.** The side menu now shows only its icons. The menu button (three lines) at the top opens it over the page with the names; pick a page, click outside or press Esc to close it.
+- **Edge-to-edge banner.** The featured film, series or anime on the home page now spans the full width of the window.
+- **Readable over any picture.** The Harbor name at the top, the search bar and the window buttons (close, maximize, minimize) sit on a dark glass backing, so they stay clear over bright images.
+- **Smooth auto-advance bar.** The bar under the banner is now animated by the GPU instead of being resized every frame, so it no longer stutters, and it keeps moving while the mouse is over the banner. It uses the theme's accent colour.
+- **Opens full screen.** Harbor starts full screen and covers the taskbar.
 
 ## New in boost-5
 
