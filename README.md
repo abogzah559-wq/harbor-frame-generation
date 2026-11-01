@@ -26,6 +26,12 @@ Harbor Frame Generation is a build of [Harbor](docs/HARBOR-UPSTREAM.md) (a deskt
 | **Head start** *(new)* | RIFE works up to 2 seconds ahead of the picture on screen, the way a video buffers before you reach it. Heavy scenes and short GPU spikes are absorbed by the frames already made, so they never show as a stutter. |
 | **Clearer home banner** *(new)* | The featured film or series at the top of the home page is taller and brighter, with lighter shading over the picture, and a bar under it fills up until the next title comes. |
 
+## What Harbor does
+
+- Browse films, series and anime from your Stremio addons, with catalogs, search, a watch list, continue-watching and calendars.
+- Play streams in a native mpv player with subtitles, audio tracks, casting and downloads.
+- Boost (below) adds frame generation, upscaling and a GPU budget to that player.
+
 ## Install
 
 1. Download `Harbor_…_x64-setup.exe` from the [latest release](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest).
