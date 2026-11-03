@@ -13,7 +13,7 @@ type Glide = { target: number; last: number; raf: number; behavior: string };
 const glides = new WeakMap<HTMLElement, Glide>();
 
 /** How much of the remaining distance is covered per 60 Hz frame. */
-const EASE = 0.18;
+const EASE = 0.15;
 
 function scrollableY(el: HTMLElement, dy: number): boolean {
   const style = getComputedStyle(el);
@@ -84,7 +84,9 @@ let installed = false;
 
 export function installSmoothWheel(): void {
   if (installed || typeof window === "undefined") return;
-  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  // No prefers-reduced-motion check: Windows reports "reduce" whenever its
+  // own animations are switched off (common on gaming PCs), which left the
+  // wheel jumping in raw steps. Gliding is what the user asked for.
   installed = true;
   window.addEventListener("wheel", onWheel, { passive: false, capture: true });
 }

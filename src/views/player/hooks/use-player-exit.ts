@@ -29,6 +29,7 @@ export function usePlayerExit(params: {
   notifyHostLeaving: () => void;
   clearInvite: () => void;
   exitPlayback: () => void;
+  exitPickerToDetail: ReturnType<typeof useView>["exitPickerToDetail"];
   openPicker: ReturnType<typeof useView>["openPicker"];
 }) {
   const {
@@ -49,10 +50,11 @@ export function usePlayerExit(params: {
     notifyHostLeaving,
     clearInvite,
     exitPlayback,
+    exitPickerToDetail,
     openPicker,
   } = params;
 
-  const closePlayer = useCallback(async () => {
+  const leavePlayer = useCallback(async (toDetail: boolean) => {
     await captureExitSnapshot();
     const pos = getPlaybackPosition();
     // Same floor as the autosave: closing during a (re)load must not wipe the saved spot.
@@ -83,8 +85,14 @@ export function usePlayerExit(params: {
       notifyHostLeaving();
       clearInvite();
     }
-    exitPlayback();
-  }, [captureExitSnapshot, exitPlayback, src.meta.id, src.meta.name, season, episode, inRoom, isHost, notifyHostLeaving, clearInvite, publishState, exitPip, liveStreamRef, liveUrl, src.url, stopCast, castActiveRef]);
+    if (toDetail) exitPickerToDetail(src.meta);
+    else exitPlayback();
+  }, [captureExitSnapshot, exitPlayback, exitPickerToDetail, src.meta, src.meta.id, src.meta.name, season, episode, inRoom, isHost, notifyHostLeaving, clearInvite, publishState, exitPip, liveStreamRef, liveUrl, src.url, stopCast, castActiveRef]);
+
+  const closePlayer = useCallback(() => leavePlayer(false), [leavePlayer]);
+  /** The player's "exit full screen" button: leave playback and land on the
+   *  title's details page (the window drops out of full screen on the way). */
+  const shrinkToDetail = useCallback(() => leavePlayer(true), [leavePlayer]);
 
   const onStubEject = useCallback(() => {
     const nextAttempt = (src.attempt ?? 0) + 1;
@@ -110,5 +118,5 @@ export function usePlayerExit(params: {
     );
   }, [src.attempt, src.meta, src.episode, src.streamRef, season, episode, openPicker, instantPlay, inRoom, closePlayer, bridgeRef]);
 
-  return { closePlayer, onStubEject };
+  return { closePlayer, shrinkToDetail, onStubEject };
 }

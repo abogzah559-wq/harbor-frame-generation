@@ -60,9 +60,16 @@ export type PlayerStreamRef = {
   cachedSlugs?: string[];
 };
 
+export type GridTab = { title: string; fetcher: (page: number) => Promise<Meta[]> };
+
 export type GridSpec = {
   title: string;
   fetcher: (page: number) => Promise<Meta[]>;
+  /** several catalogs under one page (Nuvio folders): shown as tabs */
+  tabs?: GridTab[];
+  /** header art (Nuvio folder backdrop and title logo) */
+  backdrop?: string;
+  logo?: string;
   initial?: Meta[];
   kidsHero?: { grad: string; art: string; name: string };
 };

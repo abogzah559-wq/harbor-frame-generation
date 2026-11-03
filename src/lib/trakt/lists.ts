@@ -9,11 +9,25 @@ type RawListItem = {
   show?: { title: string; year: number | null; ids: { imdb?: string; tmdb?: number; tvdb?: number; trakt?: number } };
 };
 
-export async function fetchTraktList(listId: string | number, page: number = 1, limit: number = 20): Promise<TraktItem[]> {
-  const rows = await traktRequest<RawListItem[]>(
-    `/lists/${listId}/items?page=${page}&limit=${limit}`,
-    { authed: false }
-  ).catch(() => []);
+export async function fetchTraktList(
+  listId: string | number,
+  page: number = 1,
+  limit: number = 20,
+  sort?: { by: string; how?: string },
+): Promise<TraktItem[]> {
+  const plain = () =>
+    traktRequest<RawListItem[]>(`/lists/${listId}/items?page=${page}&limit=${limit}`, { authed: false }).catch(
+      () => [] as RawListItem[],
+    );
+  let rows: RawListItem[] = [];
+  if (sort?.by) {
+    rows = await traktRequest<RawListItem[]>(
+      `/lists/${listId}/items/movie,show/${encodeURIComponent(sort.by)}/${sort.how === "desc" ? "desc" : "asc"}?page=${page}&limit=${limit}`,
+      { authed: false },
+    ).catch(() => [] as RawListItem[]);
+    if (!Array.isArray(rows)) rows = [];
+  }
+  if (!rows.length && (!sort?.by || page === 1)) rows = await plain();
 
   const out: TraktItem[] = [];
   for (const r of rows) {

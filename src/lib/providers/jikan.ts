@@ -306,7 +306,7 @@ function throttledJikanFetch(url: string, signal: AbortSignal): Promise<Response
   return result;
 }
 
-async function jikanQuery(path: string, params: Record<string, string | number> = {}): Promise<Meta[]> {
+export async function jikanQuery(path: string, params: Record<string, string | number> = {}): Promise<Meta[]> {
   const effective = adultContentHidden() ? { sfw: "true", ...params } : params;
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(effective)) qs.set(k, String(v));

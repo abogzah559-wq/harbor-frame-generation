@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { BackToTop } from "@/components/back-to-top";
 import { PickCard } from "@/components/pick-card";
@@ -10,6 +10,37 @@ import { useScrollMemory, useView, type GridSpec } from "@/lib/view";
 const PAGE_CAP = 40;
 
 export function GridView({ grid }: { grid: GridSpec }) {
+  const [tab, setTab] = useState(0);
+  if (!grid.tabs?.length) return <GridPane grid={grid} />;
+  const current = grid.tabs[Math.min(tab, grid.tabs.length - 1)];
+  return (
+    <GridPane
+      key={`tab-${tab}`}
+      grid={{ ...grid, fetcher: current.fetcher, initial: undefined }}
+      scrollKey={`grid:${grid.title}:${tab}`}
+      tabBar={
+        <div className="flex flex-wrap gap-2">
+          {grid.tabs.map((tb, i) => (
+            <button
+              key={`${tb.title}-${i}`}
+              type="button"
+              onClick={() => setTab(i)}
+              className={`h-9 rounded-full border px-4 text-[13.5px] font-medium transition-colors ${
+                i === tab
+                  ? "border-transparent bg-accent text-white"
+                  : "border-edge-soft bg-elevated/60 text-ink-muted hover:bg-raised hover:text-ink"
+              }`}
+            >
+              {tb.title}
+            </button>
+          ))}
+        </div>
+      }
+    />
+  );
+}
+
+function GridPane({ grid, scrollKey, tabBar }: { grid: GridSpec; scrollKey?: string; tabBar?: ReactNode }) {
   const { goBack } = useView();
   const t = useT();
   const scrollRef = useRef<HTMLElement>(null);
@@ -18,7 +49,7 @@ export function GridView({ grid }: { grid: GridSpec }) {
   const [page, setPage] = useState(grid.initial?.length ? 1 : 0);
   const [done, setDone] = useState(false);
   const loadingRef = useRef(false);
-  useScrollMemory(`grid:${grid.title}`, scrollRef);
+  useScrollMemory(scrollKey ?? `grid:${grid.title}`, scrollRef);
 
   useEffect(() => {
     if (done) return;
@@ -114,6 +145,41 @@ export function GridView({ grid }: { grid: GridSpec }) {
           </section>
           <div className="flex w-full flex-col gap-8 px-12 pb-24 pt-6">{body}</div>
         </>
+      ) : grid.backdrop ? (
+        <>
+          <section className="relative h-[46vh] min-h-[340px] w-full overflow-hidden">
+            <img src={grid.backdrop} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-canvas via-canvas/40 to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/50 via-black/10 to-transparent rtl:bg-gradient-to-l" />
+            {!layoutHasGlobalBack() && (
+              <button
+                onClick={goBack}
+                aria-label="Back"
+                className="absolute start-12 top-24 flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md transition-colors hover:bg-black/65"
+              >
+                <ArrowLeft size={18} strokeWidth={2.2} className="dir-icon" />
+              </button>
+            )}
+            <div className="absolute inset-x-0 bottom-0 flex flex-col items-start gap-3 px-12 pb-8">
+              {grid.logo ? (
+                <img
+                  src={grid.logo}
+                  alt={grid.title}
+                  draggable={false}
+                  className="max-h-[120px] max-w-[min(520px,60%)] object-contain drop-shadow-[0_6px_24px_rgba(0,0,0,0.65)]"
+                />
+              ) : (
+                <h1 className="font-display text-[clamp(34px,4.6vw,60px)] font-bold leading-none tracking-tight text-white drop-shadow-[0_4px_18px_rgba(0,0,0,0.7)]">
+                  {grid.title}
+                </h1>
+              )}
+            </div>
+          </section>
+          <div className="flex w-full flex-col gap-8 px-12 pb-24 pt-4">
+            {tabBar}
+            {body}
+          </div>
+        </>
       ) : (
         <div className="flex w-full flex-col gap-8 px-12 pb-24 pt-24">
           <div className="flex items-center gap-4">
@@ -131,6 +197,7 @@ export function GridView({ grid }: { grid: GridSpec }) {
             </h1>
             <span className="text-[14px] text-ink-subtle">{metas.length} titles</span>
           </div>
+          {tabBar}
           {body}
         </div>
       )}

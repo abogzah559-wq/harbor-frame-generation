@@ -609,7 +609,10 @@ function filterSizes(p: BoostProfile, pl: BoostPlan | null): { conc: number; buf
   const base = { conc: Math.min(6, p.gpuThreads + 1), buffered: 10 };
   const sec = Math.max(0, Math.min(2, p.lookahead ?? 0));
   if (!sec || !pl) return base;
-  const conc = Math.max(base.conc, Math.min(96, Math.ceil(pl.outFps * sec)));
+  // with a target frame rate the window never holds more frames than that
+  // rate (60 at 60 fps): a longer queue only adds memory and seek delay
+  const cap = p.fgMode === "target" ? Math.max(base.conc, Math.round(Math.min(p.target, pl.outFps))) : 96;
+  const conc = Math.max(base.conc, Math.min(cap, 96, Math.ceil(pl.outFps * sec)));
   // source frames the window reaches into, plus RIFE's neighbours and slack
   const input = Math.ceil(pl.srcFps * sec) + 12;
   return { conc, buffered: Math.max(1, Math.ceil(input / conc)) };

@@ -5,8 +5,12 @@ export type CatalogSource = {
 };
 
 export type NativeSource = {
-  title: string;
+  title?: string;
   sortBy?: string;
+  sortHow?: string;
+  /** provider "jikan": MyAnimeList (Jikan v4) path and query */
+  path?: string;
+  params?: Record<string, string>;
   filters?: Record<string, any>;
   provider: string;
   mediaType: string;
@@ -21,7 +25,9 @@ export type SourceFolder = {
   coverImageUrl: string | null;
   focusGifUrl: string | null;
   coverEmoji?: string | null;
-  tileShape: "LANDSCAPE" | "POSTER";
+  tileShape: "LANDSCAPE" | "POSTER" | "SQUARE";
+  heroBackdropUrl?: string | null;
+  titleLogoUrl?: string | null;
   hideTitle?: boolean;
   catalogSources?: CatalogSource[];
   sources?: NativeSource[];
@@ -47,7 +53,7 @@ export function isValidSourceRow(data: any): data is SourceRow {
   for (const folder of data.folders) {
     if (!folder || typeof folder !== "object") return false;
     if (typeof folder.id !== "string" || typeof folder.title !== "string") return false;
-    if (folder.tileShape !== "LANDSCAPE" && folder.tileShape !== "POSTER") return false;
+    if (folder.tileShape !== "LANDSCAPE" && folder.tileShape !== "POSTER" && folder.tileShape !== "SQUARE") return false;
 
     const hasCatalogSources = Array.isArray(folder.catalogSources) && folder.catalogSources.length > 0;
     const hasNativeSources = Array.isArray(folder.sources) && folder.sources.length > 0;

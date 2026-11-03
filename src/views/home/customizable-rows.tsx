@@ -183,7 +183,13 @@ export function CustomizableRows({
           (customization.numerals ?? []).includes(row.key) && metas.length >= 10;
         let rowEl;
         if (row.sourceRow) {
-          rowEl = <CustomSourcesRow sourceRow={row.sourceRow} editMode={editMode} onEditFolderImages={onEditFolderImages} />;
+          rowEl = (
+            <CustomSourcesRow
+              sourceRow={row.sourceRow}
+              editMode={editMode}
+              onEditFolderImages={row.key.startsWith("nuvio-") ? undefined : onEditFolderImages}
+            />
+          );
         } else if (ranked) {
           rowEl = (
             <Row
@@ -237,7 +243,7 @@ export function CustomizableRows({
                 heroActive={customization.heroSource === row.key}
                 canHero={row.metas.some((m) => m.background || m.poster)}
                 onToggleHero={() => onToggleHero?.(row.key)}
-                onDelete={row.sourceRow ? () => onDeleteCustomSource?.(row.key) : undefined}
+                onDelete={row.sourceRow && !row.key.startsWith("nuvio-") ? () => onDeleteCustomSource?.(row.key) : undefined}
               />
             )}
             {!hidden && (eager ? rowEl : <LazyMount minHeight={340}>{rowEl}</LazyMount>)}

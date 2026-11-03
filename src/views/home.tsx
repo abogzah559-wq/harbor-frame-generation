@@ -69,6 +69,8 @@ import {
   mergeRows,
 } from "./home/home-rows";
 import type { HomeRow } from "./home/home-types";
+import { loadNuvioPresets, NUVIO_ANIME_PREFIX } from "@/lib/nuvio/presets";
+import { interleaveHero, isRecent, launchOrder, looksAnime, recentHeroMix } from "./home/hero-mix";
 import { RowSkeleton } from "./home/row-skeleton";
 import { AddSourceModal } from "@/components/add-source-modal";
 import type { SourceRow } from "@/lib/custom-sources";
@@ -94,6 +96,17 @@ export function Home({ active = true }: { active?: boolean }) {
   const [localWatched, setLocalWatched] = useState<WatchedSet>(() => recentlyPlayed());
   useEffect(() => subscribePlayback(() => setLocalWatched(recentlyPlayed())), []);
   const [heroPool, setHeroPool] = useState<Meta[]>([]);
+  const [nuvioPresets, setNuvioPresets] = useState<SourceRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void loadNuvioPresets().then((r) => {
+      if (!cancelled) setNuvioPresets(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const [heroMix, setHeroMix] = useState<{ general: Meta[]; anime: Meta[]; done?: boolean }>({ general: [], anime: [] });
   const [items, setItems] = useState<LibraryItem[]>([]);
   const cwVersion = useCwDismissVersion();
   const [tmdbProvidedByAddon, setTmdbProvidedByAddon] = useState(false);
@@ -563,7 +576,43 @@ export function Home({ active = true }: { active?: boolean }) {
     return hit && hit.metas.some((m) => m.background || m.poster) ? hit : null;
   }, [settings.homeRows.heroSource, personalRows, traktRows, simklRows, letterboxdRows, rows, animeRows]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void recentHeroMix(settings.tmdbKey, !settings.hideContent.anime).then((mix) => {
+      if (!cancelled) setHeroMix({ ...mix, done: true });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.tmdbKey, settings.hideContent.anime]);
+
+  /** Banner: a new random order every launch, alternating film/series and
+   *  anime, only titles from the last ~1.5 years. */
+  const mixedHero = useMemo<Meta[]>(() => {
+    const HERO_COUNT = 8;
+    // wait for the TMDB mix so the banner doesn't swap titles a second after launch
+    if (settings.tmdbKey && !heroMix.done) return [];
+    let general = heroMix.general;
+    let anime = heroMix.anime;
+    if (general.length < 2) {
+      // no TMDB key (or it failed): use what the home rows already loaded
+      const loaded = [...heroPool, ...rows.flatMap((r) => r.metas.slice(0, 20))];
+      general = launchOrder(loaded.filter((m) => !!m.background && isRecent(m) && !looksAnime(m)));
+    }
+    if (anime.length < 1 && !settings.hideContent.anime) {
+      anime = launchOrder(animeRows.flatMap((r) => r.metas.slice(0, 30)).filter((m) => isRecent(m)));
+    }
+    return interleaveHero(general, anime, HERO_COUNT);
+  }, [heroMix, heroPool, rows, animeRows, settings.hideContent.anime, settings.tmdbKey]);
+
   const heroSlides = useMemo<Slide[]>(() => {
+    if (mixedHero.length >= 2) {
+      return mixedHero.map((m, i) => ({
+        meta: m,
+        rank: { label: looksAnime(m) || /^(kitsu|mal):/.test(m.id) ? "Anime" : m.type === "series" ? "TV" : "Movies", position: i + 1 },
+      }));
+    }
+    if (settings.tmdbKey && !heroMix.done) return [];
     const pool = (
       heroSourceRow
         ? [
@@ -581,7 +630,7 @@ export function Home({ active = true }: { active?: boolean }) {
       if (out.length >= 4) break;
     }
     return out;
-  }, [heroPool, heroSourceRow]);
+  }, [heroPool, heroSourceRow, mixedHero, settings.tmdbKey, heroMix.done]);
 
   const scrollRef = useRef<HTMLElement>(null);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
@@ -642,11 +691,42 @@ export function Home({ active = true }: { active?: boolean }) {
     }));
   }, [homeRowsCustom.customSources]);
 
+  /** Built-in collections, minus any the user already added himself. */
+  const presetRows = useMemo<HomeRow[]>(() => {
+    if (settings.homeMode === "classic") return [];
+    const norm = (s: string) => s.trim().toLowerCase();
+    const own = homeRowsCustom.customSources || [];
+    const ownIds = new Set(own.map((sr) => sr.id));
+    const ownTitles = new Set(own.map((sr) => norm(sr.title)));
+    return nuvioPresets
+      .filter((sr) => !ownIds.has(sr.id) && !ownTitles.has(norm(sr.title)))
+      .filter((sr) => !(settings.hideContent.anime && sr.id.startsWith(NUVIO_ANIME_PREFIX)))
+      .map((sr) => ({
+        key: sr.id,
+        type: "movie" as const,
+        name: sr.title,
+        metas: [],
+        page: 1,
+        hasMore: false,
+        sourceRow: sr,
+        noDedup: true,
+      }));
+  }, [nuvioPresets, homeRowsCustom.customSources, settings.homeMode, settings.hideContent.anime]);
+
   const pinnedRows = usePinnedRows();
-  const allCustomizableRows = useMemo(
-    () => [...sourceRows, ...pinnedRows, ...arabicRows, ...personalRows, ...traktRows, ...simklRows, ...letterboxdRows, ...restRows, ...animeRows],
-    [sourceRows, pinnedRows, arabicRows, personalRows, traktRows, simklRows, letterboxdRows, restRows, animeRows],
-  );
+  const allCustomizableRows = useMemo(() => {
+    // one collection row after every two content rows, so they never pile up;
+    // Arabic rows (series of every kind) stay at the very bottom
+    const content = [...personalRows, ...traktRows, ...simklRows, ...letterboxdRows, ...restRows, ...animeRows];
+    const mixed: HomeRow[] = [];
+    let p = 0;
+    content.forEach((row, i) => {
+      mixed.push(row);
+      if (i % 2 === 1 && p < presetRows.length) mixed.push(presetRows[p++]);
+    });
+    while (p < presetRows.length) mixed.push(presetRows[p++]);
+    return [...sourceRows, ...pinnedRows, ...mixed, ...arabicRows];
+  }, [sourceRows, pinnedRows, arabicRows, personalRows, traktRows, simklRows, letterboxdRows, restRows, animeRows, presetRows]);
   const visibleRows = useMemo(
     () => applyHomeRowCustomization(allCustomizableRows, homeRowsCustom, false),
     [allCustomizableRows, homeRowsCustom],

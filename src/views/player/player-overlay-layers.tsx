@@ -53,6 +53,7 @@ export type PlayerOverlayLayersProps = {
   pickAnotherOrGuide: () => void;
   playPauseToggle: () => void;
   toggleFullscreen: () => void;
+  onFullscreenButton: () => void;
   onVolumeWheel: (deltaY: number) => void;
   onVolumeFeedback: (volume: number, muted: boolean) => void;
   isLocalSrc: boolean;
@@ -307,7 +308,7 @@ export function PlayerOverlayLayers(p: PlayerOverlayLayersProps) {
           onAnime4kMode={p.onAnime4kMode}
           anime4kAvailable={p.anime4kAvailable}
           onPiP={() => p.togglePipMode()}
-          onFullscreen={p.toggleFullscreen}
+          onFullscreen={p.onFullscreenButton}
           openCastMenu={p.cast.openCastMenu}
           onToggleDraw={() => {
             p.setDrawMode((d) => !d);

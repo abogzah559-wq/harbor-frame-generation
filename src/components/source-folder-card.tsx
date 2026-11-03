@@ -2,23 +2,22 @@ import { useState } from "react";
 import { useView } from "@/lib/view";
 import type { SourceFolder } from "@/lib/custom-sources";
 import { useAuth } from "@/lib/auth";
-import { createAddonCatalogFetcher, gatherCatalogAddons } from "@/lib/addons";
+import { buildFolderGrid } from "@/lib/nuvio/folder-grid";
 import { Pencil, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { EditFolderImagesModal } from "./edit-folder-images-modal";
 import { useT } from "@/lib/i18n";
 import { useSettings } from "@/lib/settings";
-import { tmdbDiscover, tmdbCollection } from "@/lib/providers/tmdb";
-import { fetchTraktList } from "@/lib/trakt/lists";
-import { hydrateTraktItems } from "@/lib/trakt/hydrate";
 
 export function SourceFolderCard({
   folder,
   editMode,
   sourceId,
   onEditFolderImages,
+  showAllTab,
 }: {
   folder: SourceFolder;
+  showAllTab?: boolean;
   editMode?: boolean;
   sourceId?: string;
   onEditFolderImages?: (sourceId: string, folderId: string, cover: string, gif: string) => void;
@@ -35,106 +34,25 @@ export function SourceFolderCard({
 
   const handleClick = async () => {
     if (loading) return;
-
-    if (folder.sources && folder.sources.length > 0) {
-      const source = folder.sources[0];
-      if (source.provider === "tmdb") {
-        if (!settings.tmdbKey) {
-          setMissingTmdbKey(true);
-          return;
-        }
-
-        if (source.tmdbSourceType === "DISCOVER" || source.tmdbSourceType === "COMPANY") {
-          const params: Record<string, string> = {};
-          if (source.sortBy) params["sort_by"] = source.sortBy;
-          if (source.filters) {
-            for (const [k, v] of Object.entries(source.filters)) {
-              if (k === "year") {
-                params[source.mediaType === "TV" ? "first_air_date_year" : "primary_release_year"] = String(v);
-              } else if (k === "voteCountGte") {
-                params["vote_count.gte"] = String(v);
-              } else if (k === "voteAverageGte") {
-                params["vote_average.gte"] = String(v);
-              } else {
-                const snake = k.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
-                params[snake] = String(v);
-              }
-            }
-          }
-
-          if (source.tmdbSourceType === "COMPANY" && source.tmdbId) {
-            params["with_companies"] = String(source.tmdbId);
-          }
-
-          openGrid({
-            title: source.title || folder.title,
-            fetcher: async (page: number) => {
-              return tmdbDiscover(settings.tmdbKey!, source.mediaType.toLowerCase() as "movie" | "tv", {
-                ...params,
-                page: String(page),
-              });
-            },
-          });
-          return;
-        }
-
-        if (source.tmdbSourceType === "COLLECTION" && source.tmdbId) {
-          openGrid({
-            title: source.title || folder.title,
-            fetcher: async (page: number) => {
-              if (page > 1) return [];
-              const coll = await tmdbCollection(settings.tmdbKey!, Number(source.tmdbId));
-              return coll?.parts || [];
-            },
-          });
-          return;
-        }
-      } else if (source.provider === "trakt" && source.traktListId) {
-        if (!settings.tmdbKey) {
-          setMissingTmdbKey(true);
-          return;
-        }
-
-        openGrid({
-          title: source.title || folder.title,
-          fetcher: async (page: number) => {
-            const items = await fetchTraktList(source.traktListId!, page, 20);
-            return hydrateTraktItems(items, settings.tmdbKey!);
-          },
-        });
-        return;
-      }
-    }
-
-    if (!folder.catalogSources || folder.catalogSources.length === 0) return;
-
-    const source = folder.catalogSources[0];
-
     setLoading(true);
     try {
-      const addons = await gatherCatalogAddons(authKey);
-      const addon = addons.find((a) => a.manifest.id === source.addonId);
-
-      if (!addon) {
-        setErrorAddon(source.addonId);
+      const res = await buildFolderGrid(folder, { tmdbKey: settings.tmdbKey, authKey }, {
+        showAllTab,
+        allTitle: t("All"),
+      });
+      if ("error" in res) {
+        if (res.error === "tmdb-key") setMissingTmdbKey(true);
+        else if (res.error === "addon") setErrorAddon(res.addonId);
         return;
       }
-
-      openGrid({
-        title: folder.title,
-        fetcher: createAddonCatalogFetcher({
-          base: addon.transportUrl.replace(/\/manifest\.json$/, ""),
-          type: source.type,
-          id: source.catalogId,
-        }),
-      });
+      openGrid(res);
     } finally {
       setLoading(false);
     }
   };
 
   const isPoster = folder.tileShape === "POSTER";
-  const aspectRatio = isPoster ? "aspect-[2/3]" : "aspect-[16/9]";
+  const aspectRatio = isPoster ? "aspect-[2/3]" : folder.tileShape === "SQUARE" ? "aspect-square" : "aspect-[16/9]";
 
   return (
     <>

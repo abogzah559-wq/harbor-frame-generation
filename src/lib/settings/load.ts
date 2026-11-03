@@ -86,6 +86,7 @@ export function loadStoredSettings(rawKey: string = STORAGE_KEY): Settings {
     const parsed = JSON.parse(raw) as Partial<Settings> & {
       _subStyleV2?: boolean;
       _heroFullV1?: boolean;
+      _nuvioLayoutV1?: boolean;
       _subAssForceV1?: boolean;
       _subAssRespectV2?: boolean;
       _mpvEmbedV2?: boolean;
@@ -135,6 +136,12 @@ export function loadStoredSettings(rawKey: string = STORAGE_KEY): Settings {
     if (!parsed._anime4kIndicatorOffV1) {
       parsed.playerAnime4kIndicator = false;
       parsed._anime4kIndicatorOffV1 = true;
+    }
+    if (!parsed._nuvioLayoutV1) {
+      // new home layout (built-in collections between rows, Arabic rows last):
+      // a saved manual order would pin the old arrangement, so start fresh
+      if (parsed.homeRows) parsed.homeRows = { ...parsed.homeRows, order: [] };
+      parsed._nuvioLayoutV1 = true;
     }
     if (!parsed._heroFullV1) {
       // the home banner now runs edge to edge by default

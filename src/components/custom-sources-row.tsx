@@ -13,23 +13,26 @@ export function CustomSourcesRow({
 }) {
   if (!sourceRow.folders || sourceRow.folders.length === 0) return null;
 
-  const isPoster = sourceRow.folders[0]?.tileShape === "POSTER";
+  const shape = sourceRow.folders[0]?.tileShape;
+  const isPoster = shape === "POSTER";
+  const width = isPoster ? 160 : shape === "SQUARE" ? 210 : 320;
 
   return (
     <Row
       title={sourceRow.title}
-      min={isPoster ? 160 : 320}
+      min={width}
       shape={isPoster ? "portrait" : "landscape"}
       arrowsAlways
       scrollKey={`home:source:${sourceRow.id}`}
     >
       {sourceRow.folders.map((folder, index) => (
-        <div key={`${folder.id}-${index}`} className={isPoster ? "w-[160px]" : "w-[320px]"}>
+        <div key={`${folder.id}-${index}`} style={{ width }}>
           <SourceFolderCard
             folder={folder}
             editMode={editMode}
             sourceId={sourceRow.id}
             onEditFolderImages={onEditFolderImages}
+            showAllTab={!!sourceRow.showAllTab}
           />
         </div>
       ))}
