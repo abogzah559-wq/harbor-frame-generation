@@ -4,6 +4,7 @@ import { Flag } from "@/components/flag";
 import { markImportedSub } from "@/lib/player/imported-subs";
 import { useT } from "@/lib/i18n";
 import { openSyncBar } from "@/lib/player/sub-sync";
+import { TRANSLATE_EVENT, useAiTranslateState } from "@/lib/subtitles/ai-translate";
 import { Tooltip } from "../transport/tooltip";
 import { SearchSection } from "./search-section";
 import { VariantRow } from "./variant-row";
@@ -177,6 +178,8 @@ export function MenuBody(props: SubtitleMenuProps & { onClose: () => void }) {
             </span>
             {offSelected ? tr("Off") : tr("On")}
           </button>
+
+          <AiTranslateButton disabled={tracks.length === 0} />
 
           {groups.length > 0 && (
             <div className="mt-1.5 mb-0.5 px-2.5 text-[10px] font-bold uppercase tracking-[0.16em] text-ink-subtle">
@@ -425,5 +428,46 @@ function EmptyState({ searchSettled, veryNewMovie }: { searchSettled: boolean; v
     <p className="px-5 py-6 text-[13.5px] text-ink-muted">
       {tr("No subtitles found yet. Try the search at the bottom.")}
     </p>
+  );
+}
+
+/** Translate the subtitle being watched (any language) into Arabic with Gemini. */
+function AiTranslateButton({ disabled }: { disabled: boolean }) {
+  const tr = useT();
+  const st = useAiTranslateState();
+  const busy = st.status === "extracting" || st.status === "translating";
+  const label =
+    st.status === "extracting"
+      ? tr("Getting subtitle…")
+      : st.status === "translating"
+        ? tr("Translating {pct}%", { pct: Math.round(st.progress * 100) })
+        : st.status === "done"
+          ? tr("Arabic ready")
+          : tr("Translate to Arabic");
+  const error =
+    st.status === "error"
+      ? st.error === "no-key"
+        ? tr("Add a Gemini key in Settings › Library & Metadata")
+        : st.error === "no-cues" || st.error?.startsWith("extract")
+          ? tr("No subtitle to translate")
+          : `${tr("Translation failed")}: ${st.error ?? ""}`
+      : null;
+  return (
+    <div className="mt-1.5 flex flex-col gap-1">
+      <button
+        type="button"
+        disabled={disabled || busy}
+        onClick={() => window.dispatchEvent(new Event(TRANSLATE_EVENT))}
+        className="flex items-center gap-2 rounded-md bg-accent/15 px-2.5 py-2 text-start text-[12.5px] font-semibold text-accent ring-1 ring-accent/30 transition-colors hover:bg-accent/25 disabled:opacity-60"
+      >
+        {busy ? (
+          <Loader2 size={14} strokeWidth={2.2} className="shrink-0 animate-spin" />
+        ) : (
+          <Sparkles size={14} strokeWidth={2.2} className="shrink-0" />
+        )}
+        <span className="flex-1 leading-tight">{label}</span>
+      </button>
+      {error && <p className="px-1 text-[10.5px] leading-snug text-red-400">{error}</p>}
+    </div>
   );
 }

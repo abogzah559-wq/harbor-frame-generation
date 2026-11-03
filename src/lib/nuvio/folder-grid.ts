@@ -6,6 +6,7 @@
 import type { Meta } from "@/lib/cinemeta";
 import { createAddonCatalogFetcher, gatherCatalogAddons } from "@/lib/addons";
 import type { NativeSource, SourceFolder } from "@/lib/custom-sources";
+import { resolveMdblist } from "@/lib/lists/sources/mdblist";
 import { jikanQuery } from "@/lib/providers/jikan";
 import { tmdbCollection, tmdbDiscover } from "@/lib/providers/tmdb";
 import { get } from "@/lib/providers/tmdb/tmdb-client";
@@ -14,9 +15,9 @@ import { hydrateTraktItems } from "@/lib/trakt/hydrate";
 import { fetchTraktList } from "@/lib/trakt/lists";
 import type { GridSpec, GridTab } from "@/lib/view";
 
-export type FolderGridError = { error: "tmdb-key" } | { error: "addon"; addonId: string } | { error: "empty" };
+export type FolderGridError = { error: "tmdb-key" } | { error: "mdblist-key" } | { error: "addon"; addonId: string } | { error: "empty" };
 
-type Ctx = { tmdbKey?: string; authKey?: string | null };
+type Ctx = { tmdbKey?: string; mdblistKey?: string; authKey?: string | null };
 
 const PAGE = 20;
 
@@ -101,8 +102,20 @@ function tmdbListFetcher(key: string, source: NativeSource): (page: number) => P
   };
 }
 
-function nativeTab(source: NativeSource, folder: SourceFolder, ctx: Ctx): GridTab | "tmdb-key" | null {
+function nativeTab(source: NativeSource, folder: SourceFolder, ctx: Ctx): GridTab | "tmdb-key" | "mdblist-key" | null {
   const title = source.title || folder.title;
+  if (source.provider === "mdblist" && source.listId) {
+    if (!ctx.mdblistKey) return "mdblist-key";
+    const key = ctx.mdblistKey;
+    let all: Promise<Meta[]> | null = null;
+    return {
+      title,
+      fetcher: async (page) => {
+        all ??= resolveMdblist(source.listId!, key);
+        return (await all).slice((page - 1) * PAGE, page * PAGE);
+      },
+    };
+  }
   if (source.provider === "jikan" && source.path) {
     const params = source.params ?? {};
     return { title, fetcher: (page) => jikanQuery(source.path!, { ...params, page }) };
@@ -167,10 +180,12 @@ export async function buildFolderGrid(
 ): Promise<GridSpec | FolderGridError> {
   const tabs: GridTab[] = [];
   let needKey = false;
+  let needMdblist = false;
   let missingAddon: string | undefined;
   for (const s of folder.sources ?? []) {
     const tab = nativeTab(s, folder, ctx);
     if (tab === "tmdb-key") needKey = true;
+    else if (tab === "mdblist-key") needMdblist = true;
     else if (tab) tabs.push(tab);
   }
   if (folder.catalogSources?.length) {
@@ -193,6 +208,7 @@ export async function buildFolderGrid(
   }
   if (!tabs.length) {
     if (missingAddon) return { error: "addon", addonId: missingAddon };
+    if (needMdblist) return { error: "mdblist-key" };
     return needKey ? { error: "tmdb-key" } : { error: "empty" };
   }
   // tabs with the same name (e.g. "Most Watched" movies + series) get numbered

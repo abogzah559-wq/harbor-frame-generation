@@ -41,6 +41,7 @@ import { useStreamSwitcher } from "./player/hooks/use-stream-switcher";
 import { useMpvEmbed } from "./player/hooks/use-mpv-embed";
 import { usePlayerBridge } from "./player/hooks/use-player-bridge";
 import { useTextSync } from "./player/hooks/use-text-sync";
+import { resetAiTranslate, TRANSLATE_EVENT, translateCurrentSubtitle } from "@/lib/subtitles/ai-translate";
 import { useT } from "@/lib/i18n";
 import { useEpisodeNavigation } from "./player/hooks/use-episode-navigation";
 import { useAbLoop } from "./player/hooks/use-ab-loop";
@@ -515,6 +516,25 @@ export function PlayerView({ src }: { src: PlayerSrc }) {
   const handleEnterSync = useCallback(() => {
     void textSync.enter(src.url, src.headers);
   }, [textSync.enter, src.url, src.headers]);
+
+  // "Translate to Arabic" in the subtitle menu
+  useEffect(() => {
+    resetAiTranslate();
+    const onTranslate = () => {
+      const b = bridgeRef.current;
+      if (!b) return;
+      void translateCurrentSubtitle({
+        bridge: b,
+        key: settings.geminiKey,
+        sourceUrl: src.url,
+        headers: src.headers,
+        title: src.meta.name,
+        cacheId: `${src.meta.id}|${season ?? ""}|${episode ?? ""}`,
+      });
+    };
+    window.addEventListener(TRANSLATE_EVENT, onTranslate);
+    return () => window.removeEventListener(TRANSLATE_EVENT, onTranslate);
+  }, [settings.geminiKey, src.url, src.headers, src.meta.id, src.meta.name, season, episode]);
 
   const volumeIndicatorTimerRef = useRef<number | null>(null);
   const [volumeIndicator, setVolumeIndicator] = useState<VolumeIndicatorState>({

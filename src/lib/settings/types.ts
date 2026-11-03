@@ -259,6 +259,8 @@ export type Settings = {
   aiSearchKey: string;
   aiSearchModel: string;
   aiGroqKey: string;
+  /** Google Gemini key: translates subtitles into Arabic */
+  geminiKey: string;
   jinaKey: string;
   aiWebSearch: boolean;
   playerD3d11Flip: boolean;

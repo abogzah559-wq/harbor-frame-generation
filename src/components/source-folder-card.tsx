@@ -29,19 +29,20 @@ export function SourceFolderCard({
   const [hover, setHover] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorAddon, setErrorAddon] = useState<string | null>(null);
-  const [missingTmdbKey, setMissingTmdbKey] = useState(false);
+  const [missingTmdbKey, setMissingTmdbKey] = useState<false | "tmdb" | "mdblist">(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const handleClick = async () => {
     if (loading) return;
     setLoading(true);
     try {
-      const res = await buildFolderGrid(folder, { tmdbKey: settings.tmdbKey, authKey }, {
+      const res = await buildFolderGrid(folder, { tmdbKey: settings.tmdbKey, mdblistKey: settings.mdblistKey, authKey }, {
         showAllTab,
         allTitle: t("All"),
       });
       if ("error" in res) {
-        if (res.error === "tmdb-key") setMissingTmdbKey(true);
+        if (res.error === "tmdb-key") setMissingTmdbKey("tmdb");
+        else if (res.error === "mdblist-key") setMissingTmdbKey("mdblist");
         else if (res.error === "addon") setErrorAddon(res.addonId);
         return;
       }
@@ -159,7 +160,7 @@ export function SourceFolderCard({
       >
         <div className="flex w-full max-w-[420px] flex-col gap-6 rounded-[24px] border border-edge-soft bg-elevated/95 px-8 py-8 shadow-[0_30px_80px_-25px_rgba(0,0,0,0.85)] animate-in zoom-in-95 fade-in duration-200">
           <div className="flex items-start justify-between gap-4">
-            <h2 className="text-[19px] font-medium tracking-tight text-ink">{t("Missing TMDB Key")}</h2>
+            <h2 className="text-[19px] font-medium tracking-tight text-ink">{missingTmdbKey === "mdblist" ? t("Missing MDBList key") : t("Missing TMDB Key")}</h2>
             <button
               onClick={() => setMissingTmdbKey(false)}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-canvas/40 text-ink-subtle transition-colors hover:bg-canvas/60 hover:text-ink"
@@ -169,10 +170,12 @@ export function SourceFolderCard({
           </div>
           <div className="text-center text-ink-muted">
             <p className="mb-4 text-[15px]">
-              {t("This section relies on TMDB discovery features.")}
+              {missingTmdbKey === "mdblist" ? t("This section comes from an MDBList list.") : t("This section relies on TMDB discovery features.")}
             </p>
             <p className="mb-6 text-[15px] leading-relaxed">
-              {t("Please add your TMDB API key in the Library & Metadata settings to view this folder.")}
+              {missingTmdbKey === "mdblist"
+                ? t("Add your free MDBList key in Settings › Library & Metadata (there's a Get key button next to it).")
+                : t("Please add your TMDB API key in the Library & Metadata settings to view this folder.")}
             </p>
             <button
               onClick={() => setMissingTmdbKey(false)}

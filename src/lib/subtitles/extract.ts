@@ -47,6 +47,7 @@ export async function getCuesAnySource(
   bridge: PlayerBridge,
   sourceUrl: string | null,
   headers?: Record<string, string>,
+  extractTimeoutSec?: number,
 ): Promise<AnySourceResult> {
   const loaded = bridge.getSelectedTrackCues();
   if (loaded && loaded.length > 0) return { ok: true, source: { cues: loaded, format: "srt" } };
@@ -71,6 +72,7 @@ export async function getCuesAnySource(
         source: sourceUrl,
         streamIndex,
         headers: headers ?? null,
+        timeoutSecs: extractTimeoutSec ?? null,
       });
       const cues = parseSubtitle(srt, "srt");
       if (cues.length > 0) return { ok: true, source: { cues, format: "srt" } };

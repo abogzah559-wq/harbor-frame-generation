@@ -9,7 +9,9 @@ pub async fn subtitle_extract(
     source: String,
     stream_index: Option<u32>,
     headers: Option<HashMap<String, String>>,
+    timeout_secs: Option<u64>,
 ) -> Result<String, String> {
+    let limit = timeout_secs.map(|s| Duration::from_secs(s.clamp(10, 900))).unwrap_or(EXTRACT_TIMEOUT);
     let ffmpeg = crate::transcode::locate_ffmpeg().ok_or_else(|| "ffmpeg not found".to_string())?;
     let map = format!("0:s:{}", stream_index.unwrap_or(0));
     let mut cmd = tokio::process::Command::new(&ffmpeg);
@@ -30,10 +32,11 @@ pub async fn subtitle_extract(
     {
         cmd.creation_flags(0x0800_0000);
     }
+    cmd.kill_on_drop(true);
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    let output = match tokio::time::timeout(EXTRACT_TIMEOUT, cmd.output()).await {
+    let output = match tokio::time::timeout(limit, cmd.output()).await {
         Ok(Ok(o)) => o,
         Ok(Err(e)) => return Err(format!("ffmpeg spawn: {}", e)),
         Err(_) => return Err("subtitle extraction timed out".to_string()),

@@ -35,7 +35,8 @@ import { HoverTooltip } from "@/components/hover-tooltip";
 import { useT } from "@/lib/i18n";
 import { RegionField } from "./region-cascade";
 import { Dropdown, type DropdownOption } from "@/components/dropdown";
-import { ExtLink, KeyField, Section, Segmented, ToggleRow } from "./shared";
+import { ExtLink, GetKeyButton, KeyField, Section, Segmented, ToggleRow } from "./shared";
+import { GEMINI_KEY_URL } from "@/lib/subtitles/ai-translate";
 import { TmdbGuideModal } from "./tmdb-tutorial-modal";
 import { TvdbGuideModal } from "./tvdb-tutorial-modal";
 import { EpisodeOrderSetting } from "./episode-order-setting";
@@ -107,6 +108,7 @@ export function LibraryPanel({
   const [mdblistDraft, setMdblistDraft] = useState(settings.mdblistKey);
   const [posterSrvDraft, setPosterSrvDraft] = useState(settings.posterBaseUrl);
   const [auddDraft, setAuddDraft] = useState(settings.auddKey);
+  const [geminiDraft, setGeminiDraft] = useState(settings.geminiKey);
   const [extraSaved, setExtraSaved] = useState<"mdblist" | "postersrv" | "ai" | "audd" | null>(null);
   const [tmdbGuide, setTmdbGuide] = useState(false);
   const [tvdbGuide, setTvdbGuide] = useState(false);
@@ -443,11 +445,29 @@ export function LibraryPanel({
           }}
           saved={extraSaved === "mdblist"}
           iconSrc={mdblistLogo}
+          headerExtra={<GetKeyButton href="https://mdblist.com/preferences/" />}
           help={
             <>
-              Free key at <ExtLink href="https://mdblist.com/preferences/">mdblist.com</ExtLink>.
-              Adds Letterboxd and Trakt community ratings to detail pages, covering what OMDb
-              misses.
+              {t("Free key: sign in at mdblist.com, open Preferences and copy the API key.")}{" "}
+              {t("Adds Letterboxd and Trakt ratings and opens the MDBList collections (Dubbed Only, Donghua).")}
+            </>
+          }
+        />
+        <KeyField
+          label={t("Gemini · Arabic subtitle translation")}
+          placeholder={t("Gemini API key")}
+          value={geminiDraft}
+          onChange={setGeminiDraft}
+          onSave={() => {
+            update({ geminiKey: geminiDraft.trim() });
+            flashExtra("ai");
+          }}
+          saved={extraSaved === "ai"}
+          headerExtra={<GetKeyButton href={GEMINI_KEY_URL} />}
+          help={
+            <>
+              {t("Free key from Google AI Studio: sign in, press Create API key and copy it.")}{" "}
+              {t("Then in the player's subtitle menu press Translate to Arabic: any subtitle, in any language, becomes natural Arabic.")}
             </>
           }
         />

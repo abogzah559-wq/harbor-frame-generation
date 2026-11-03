@@ -1729,6 +1729,28 @@ const settings: Record<string, string> = {
     "ارجع إطاراً واحداً مع الإيقاف المؤقت. دقة بمستوى الإطار على mpv.",
   "Step forward one frame and pause. Frame-accurate on mpv.":
     "تقدّم إطاراً واحداً مع الإيقاف المؤقت. دقة بمستوى الإطار على mpv.",
+  "Get key": "احصل على المفتاح",
+  "Free key: sign in at mdblist.com, open Preferences and copy the API key.":
+    "مفتاح مجاني: سجّل دخولك في mdblist.com، افتح Preferences وانسخ مفتاح API.",
+  "Adds Letterboxd and Trakt ratings and opens the MDBList collections (Dubbed Only, Donghua).":
+    "يضيف تقييمات Letterboxd وTrakt، ويفتح تجميعات MDBList (Dubbed Only وDonghua).",
+  "Gemini · Arabic subtitle translation": "Gemini · ترجمة الترجمات للعربي",
+  "Gemini API key": "مفتاح Gemini API",
+  "Free key from Google AI Studio: sign in, press Create API key and copy it.":
+    "مفتاح مجاني من Google AI Studio: سجّل دخولك، اضغط Create API key وانسخه.",
+  "Then in the player's subtitle menu press Translate to Arabic: any subtitle, in any language, becomes natural Arabic.":
+    "بعدها من قائمة الترجمة في المشغل اضغط «ترجم للعربي»: أي ترجمة وبأي لغة تتحول لعربي طبيعي.",
+  "Translate to Arabic": "ترجم للعربي",
+  "Getting subtitle…": "أجهّز الترجمة…",
+  "Translating {pct}%": "يترجم {pct}%",
+  "Arabic ready": "العربي جاهز",
+  "Translation failed": "فشلت الترجمة",
+  "Add a Gemini key in Settings › Library & Metadata": "ضيف مفتاح Gemini من الإعدادات › المكتبة والبيانات",
+  "No subtitle to translate": "ما فيه ترجمة أترجمها",
+  "Missing MDBList key": "مفتاح MDBList ناقص",
+  "This section comes from an MDBList list.": "هذا القسم يجي من قائمة في MDBList.",
+  "Add your free MDBList key in Settings › Library & Metadata (there's a Get key button next to it).":
+    "ضيف مفتاح MDBList المجاني من الإعدادات › المكتبة والبيانات (جنبه زر «احصل على المفتاح»).",
 };
 
 export default settings;

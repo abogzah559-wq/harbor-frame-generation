@@ -47,6 +47,20 @@ export function ExtLink({ href, children }: { href: string; children: React.Reac
   );
 }
 
+/** A clear "Get key" button that opens the site where the key is made. */
+export function GetKeyButton({ href }: { href: string }) {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={() => openUrl(href)}
+      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-accent px-3.5 text-[12.5px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+    >
+      {t("Get key")} <ExternalLink size={13} />
+    </button>
+  );
+}
+
 export function settingsAnchor(title: string): string {
   return "set-" + title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "");
 }
