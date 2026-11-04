@@ -285,7 +285,9 @@ const MIN_INTERVAL_MS = 400;
 
 let queueChain: Promise<void> = Promise.resolve();
 
-function throttledJikanFetch(url: string, signal: AbortSignal): Promise<Response> {
+/** Queued fetch; the timeout only starts once this request's turn comes, so
+ *  a long queue (home rows loading at launch) can't time it out while waiting. */
+function throttledJikanFetch(url: string, timeoutMs: number): Promise<Response> {
   let resolveOuter!: (r: Response) => void;
   let rejectOuter!: (e: unknown) => void;
   const result = new Promise<Response>((resolve, reject) => {
@@ -294,11 +296,15 @@ function throttledJikanFetch(url: string, signal: AbortSignal): Promise<Response
   });
 
   queueChain = queueChain.then(async () => {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), timeoutMs);
     try {
-      const r = await fetch(url, { signal });
+      const r = await fetch(url, { signal: ac.signal });
       resolveOuter(r);
     } catch (e) {
       rejectOuter(e);
+    } finally {
+      clearTimeout(timer);
     }
     await new Promise<void>((r) => setTimeout(r, MIN_INTERVAL_MS));
   });
@@ -321,13 +327,15 @@ export async function jikanQuery(path: string, params: Record<string, string | n
   const p = (async () => {
     const url = `${JIKAN}${path}${qs.toString() ? `?${qs.toString()}` : ""}`;
     for (let attempt = 0; attempt < 4; attempt++) {
-      const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), 12000);
       try {
-        const r = await throttledJikanFetch(url, ac.signal);
+        const r = await throttledJikanFetch(url, 12000);
         if (r.status === 429) {
           const backoff = 2000 * Math.pow(2, attempt);
           await new Promise((resolve) => setTimeout(resolve, backoff));
+          continue;
+        }
+        if (r.status >= 500 && attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
           continue;
         }
         if (!r.ok) return [];
@@ -338,9 +346,7 @@ export async function jikanQuery(path: string, params: Record<string, string | n
         persistCatalog();
         return metas;
       } catch {
-        return [];
-      } finally {
-        clearTimeout(timer);
+        if (attempt >= 1) return [];
       }
     }
     return [];
@@ -410,27 +416,21 @@ export const jikanSearchByTitle = (title: string, limit = 1) =>
 
 export async function jikanResolveMalId(title: string): Promise<number | null> {
   const url = `${JIKAN}/anime?q=${encodeURIComponent(title)}&limit=1&sfw=true&order_by=popularity&sort=desc`;
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 12000);
   try {
-    const r = await throttledJikanFetch(url, ac.signal);
+    const r = await throttledJikanFetch(url, 12000);
     if (!r.ok) return null;
     const j = await r.json();
     const items: Array<{ mal_id?: number }> = j?.data ?? [];
     return items[0]?.mal_id ?? null;
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
 export async function jikanRecommendationsForMalId(malId: number): Promise<Meta[]> {
   const url = `${JIKAN}/anime/${malId}/recommendations`;
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 12000);
   try {
-    const r = await throttledJikanFetch(url, ac.signal);
+    const r = await throttledJikanFetch(url, 12000);
     if (!r.ok) return [];
     const j = await r.json();
     const items: Array<{ entry?: JikanAnime; votes?: number }> = j?.data ?? [];
@@ -443,8 +443,6 @@ export async function jikanRecommendationsForMalId(malId: number): Promise<Meta[
     return await metasFromJikan(animes);
   } catch {
     return [];
-  } finally {
-    clearTimeout(timer);
   }
 }
 
