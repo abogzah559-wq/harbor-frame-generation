@@ -8,6 +8,7 @@ import { createAddonCatalogFetcher, gatherCatalogAddons } from "@/lib/addons";
 import type { NativeSource, SourceFolder } from "@/lib/custom-sources";
 import { resolveMdblist } from "@/lib/lists/sources/mdblist";
 import { jikanQuery } from "@/lib/providers/jikan";
+import { anilistCatalog } from "./anilist-source";
 import { tmdbCollection, tmdbDiscover } from "@/lib/providers/tmdb";
 import { get } from "@/lib/providers/tmdb/tmdb-client";
 import { movieMeta, seriesMeta, type RawMovie, type RawSeries } from "@/lib/providers/tmdb/tmdb-meta-mappers";
@@ -115,6 +116,10 @@ function nativeTab(source: NativeSource, folder: SourceFolder, ctx: Ctx): GridTa
         return (await all).slice((page - 1) * PAGE, page * PAGE);
       },
     };
+  }
+  if (source.provider === "anilist" && source.anilist) {
+    const params = source.anilist;
+    return { title, fetcher: (page) => anilistCatalog(params, page) };
   }
   if (source.provider === "jikan" && source.path) {
     const params = source.params ?? {};

@@ -17,6 +17,8 @@ export type NativeSource = {
   tmdbSourceType?: string;
   tmdbId?: string | number | null;
   traktListId?: string | number | null;
+  /** provider "anilist": catalog filters */
+  anilist?: import("@/lib/nuvio/anilist-source").AnilistParams;
   /** provider "mdblist": list id (needs the user's MDBList key) */
   listId?: string;
 };

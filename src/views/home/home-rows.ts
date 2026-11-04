@@ -7,6 +7,7 @@ import {
   jikanUpcoming,
   stripFranchiseSuffix,
 } from "@/lib/providers/jikan";
+import { anilistCatalog, type AnilistParams } from "@/lib/nuvio/anilist-source";
 import { tmdbMovieRow, tmdbSeriesRow, tmdbTrending } from "@/lib/providers/tmdb";
 import { type Settings } from "@/lib/settings";
 import type { HomeRow, RowSpec } from "./home-types";
@@ -150,12 +151,22 @@ export async function buildAnimeHomeRows(): Promise<HomeRow[]> {
     return out;
   };
   try {
-    const [airing, newest, popular, upcoming] = await Promise.all([
+    let [airing, newest, popular, upcoming] = await Promise.all([
       fetchMany(jikanTopAiring, 3),
       fetchMany(jikanNewReleases, 3),
       fetchMany(jikanTopPopular, 3),
       fetchMany(jikanUpcoming, 3),
     ]);
+    // Jikan (the MyAnimeList API) isn't reachable from every network: use AniList then
+    if (airing.length + newest.length + popular.length + upcoming.length === 0) {
+      const al = (p: AnilistParams) => fetchMany((page) => anilistCatalog(p, page), 2);
+      [airing, newest, popular, upcoming] = await Promise.all([
+        al({ status: "RELEASING", sort: "TRENDING_DESC" }),
+        al({ status: "RELEASING", sort: "START_DATE_DESC" }),
+        al({ sort: "POPULARITY_DESC" }),
+        al({ status: "NOT_YET_RELEASED", sort: "POPULARITY_DESC" }),
+      ]);
+    }
     const out: HomeRow[] = [];
     if (airing.length >= 6) {
       out.push({

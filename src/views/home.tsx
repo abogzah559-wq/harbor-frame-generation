@@ -720,9 +720,11 @@ export function Home({ active = true }: { active?: boolean }) {
     const content = mergeSameNameRows([...personalRows, ...traktRows, ...simklRows, ...letterboxdRows, ...restRows, ...animeRows]);
     const mixed: HomeRow[] = [];
     let p = 0;
+    // spread them evenly through the content rows (at most one after each row)
+    const every = presetRows.length ? Math.max(1, content.length / presetRows.length) : 1;
     content.forEach((row, i) => {
       mixed.push(row);
-      if (i % 2 === 1 && p < presetRows.length) mixed.push(presetRows[p++]);
+      if (p < presetRows.length && i + 1 >= Math.round((p + 1) * every)) mixed.push(presetRows[p++]);
     });
     while (p < presetRows.length) mixed.push(presetRows[p++]);
     return [...sourceRows, ...pinnedRows, ...mixed, ...mergeSameNameRows(arabicRows)];
