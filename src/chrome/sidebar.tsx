@@ -45,9 +45,19 @@ export function Sidebar() {
 
   return (
     <>
-      {/* keeps the rail's place in the layout; the rail itself floats so the
-          open menu covers the page instead of pushing it */}
-      <div aria-hidden className="w-[72px] shrink-0" />
+      {/* No rail: only the menu button shows. It opens the full menu with
+          labels over the page; picking a page or clicking outside closes it. */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={t("Expand sidebar")}
+        title={t("Expand sidebar")}
+        className={`harbor-menu-fab fixed start-4 top-4 z-[58] flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white shadow-[0_6px_24px_rgba(0,0,0,0.45)] backdrop-blur-md transition-[opacity,background-color] duration-300 hover:bg-black/65 ${
+          open || chromeHidden ? "pointer-events-none opacity-0" : "opacity-100"
+        }`}
+      >
+        <Menu size={20} strokeWidth={2} />
+      </button>
       <div
         aria-hidden
         onClick={() => setOpen(false)}
@@ -58,12 +68,10 @@ export function Sidebar() {
       <aside
         aria-hidden={chromeHidden}
         data-harbor-sidebar
-        className={`absolute inset-y-0 start-0 z-[60] flex flex-col overflow-hidden border-e border-edge-soft bg-canvas transition-[opacity,transform,width,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] ${
-          open ? "w-64 shadow-[0_0_80px_rgba(0,0,0,0.65)]" : "w-[72px]"
-        } ${
-          chromeHidden
-            ? "pointer-events-none -translate-x-2 rtl:translate-x-2 opacity-0"
-            : "translate-x-0 opacity-100"
+        className={`fixed inset-y-0 start-0 z-[60] flex flex-col overflow-hidden border-e border-edge-soft bg-canvas transition-[opacity,transform,width,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] ${
+          open && !chromeHidden
+            ? "w-64 translate-x-0 opacity-100 shadow-[0_0_80px_rgba(0,0,0,0.65)]"
+            : "pointer-events-none w-64 -translate-x-full rtl:translate-x-full opacity-0"
         }`}
       >
         {kid && <KidsSidebarDoodles />}

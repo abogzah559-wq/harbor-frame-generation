@@ -50,7 +50,7 @@ export function HeroCarousel({ slides, full = false, fullQuality = false }: { sl
 
   if (slides.length === 0) {
     return (
-      <div className={`animate-pulse border border-edge-soft bg-elevated/30 ${full ? "min-h-[clamp(560px,82vh,920px)] rounded-none" : "min-h-[clamp(600px,64vh,780px)] rounded-[28px]"}`} />
+      <div className={`animate-pulse border border-edge-soft bg-elevated/30 ${full ? "min-h-[max(560px,min(100vh,56.25vw))] rounded-none" : "min-h-[clamp(600px,64vh,780px)] rounded-[28px]"}`} />
     );
   }
 
@@ -177,7 +177,7 @@ export function HeroCarousel({ slides, full = false, fullQuality = false }: { sl
                     fullQuality={fullQuality}
                   />
                 ) : (
-                  <div className={`w-full bg-elevated/30 ${full ? "h-[clamp(560px,82vh,920px)] rounded-none" : "h-[clamp(600px,64vh,780px)] rounded-[28px]"}`} />
+                  <div className={`w-full bg-elevated/30 ${full ? "h-[max(560px,min(100vh,56.25vw))] rounded-none" : "h-[clamp(600px,64vh,780px)] rounded-[28px]"}`} />
                 )}
               </div>
             );

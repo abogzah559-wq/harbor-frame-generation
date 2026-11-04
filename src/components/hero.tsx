@@ -177,7 +177,7 @@ export const Hero = memo(function Hero({
   return (
     <section
       onClick={() => openMeta({ ...meta, logo: logo ?? meta.logo })}
-      className={`group relative cursor-pointer overflow-hidden bg-canvas ${full ? "h-[clamp(560px,82vh,920px)] rounded-none" : "h-[clamp(600px,64vh,780px)] rounded-[28px]"}`}
+      className={`group relative cursor-pointer overflow-hidden bg-canvas ${full ? "h-[max(560px,min(100vh,56.25vw))] rounded-none" : "h-[clamp(600px,64vh,780px)] rounded-[28px]"}`}
       style={{ isolation: "isolate" }}
     >
       {bg && loadBackdrop && (
@@ -203,7 +203,10 @@ export const Hero = memo(function Hero({
             playsInline
             preload="none"
             onCanPlay={() => setVideoReady(true)}
-            className="absolute left-1/2 top-1/2 h-[135%] w-[135%] -translate-x-1/2 -translate-y-1/2 object-cover"
+            className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 object-cover ${
+              // full banner is exactly 16:9: show the whole trailer frame
+              full ? "h-full w-full" : "h-[135%] w-[135%]"
+            }`}
           />
         </div>
       )}
