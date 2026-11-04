@@ -113,3 +113,56 @@ export function useFolderLogo(tmdbKey: string | undefined, l: FolderLogo | undef
   }, [tmdbKey, l, active]);
   return entry;
 }
+
+/* ---- backdrop of the network's / studio's best-known title ---- */
+
+const BG_KEY = "harbor.nuvio-logo-bg.v1";
+const bgMem: Record<string, string | null> = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(BG_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+})();
+let bgFlush = 0;
+const bgInflight = new Map<string, Promise<string | null>>();
+
+/** Picks the first title with a backdrop from the folder's "popular" catalog. */
+export function useFolderBackdrop(
+  key: string,
+  load: () => Promise<{ background?: string }[]>,
+  active: boolean,
+): string | null {
+  const [bg, setBg] = useState<string | null>(() => bgMem[key] ?? null);
+  useEffect(() => {
+    if (!active || key in bgMem) return;
+    let cancelled = false;
+    let p = bgInflight.get(key);
+    if (!p) {
+      p = load()
+        .then((list) => list.find((m) => m.background)?.background ?? null)
+        .catch(() => null)
+        .then((url) => {
+          bgMem[key] = url;
+          window.clearTimeout(bgFlush);
+          bgFlush = window.setTimeout(() => {
+            try {
+              localStorage.setItem(BG_KEY, JSON.stringify(bgMem));
+            } catch {
+              /* ignore */
+            }
+          }, 500);
+          return url;
+        });
+      bgInflight.set(key, p);
+    }
+    void p.then((url) => {
+      if (!cancelled) setBg(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, active]);
+  return bg;
+}

@@ -35,6 +35,7 @@ mod stream_proxy;
 mod streams;
 mod stremio_auth;
 mod sub_extract;
+mod selfupdate;
 mod subsync;
 mod svp;
 mod thumbs;
@@ -699,6 +700,7 @@ pub fn run() {
             deeplink_set_stremio,
             deeplink_is_stremio_registered,
             harbor_take_pending_file,
+            selfupdate::selfupdate_stage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

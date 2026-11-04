@@ -34,6 +34,7 @@ import { CustomHoverCssMount } from "@/components/custom-hover-css-mount";
 import { EmbedViewportRoot } from "@/components/embed-viewport";
 import { InstallerViewportRoot } from "@/components/installer-viewport";
 import { UpdateRoot } from "@/components/update/update-root";
+import { UpdatedToast } from "@/components/update/updated-toast";
 import { CustomCodeMount } from "@/components/custom-code-mount";
 import { MemoryHud } from "@/components/memory-hud";
 import { OfflineBanner } from "@/chrome/offline-banner";
@@ -294,6 +295,7 @@ export function App() {
                       <EmbedViewportRoot />
                       <InstallerViewportRoot />
                       <UpdateRoot />
+                      <UpdatedToast />
                     </HarborErrorBoundary>
                     <ErrorView />
                     <DevErrorTrigger />

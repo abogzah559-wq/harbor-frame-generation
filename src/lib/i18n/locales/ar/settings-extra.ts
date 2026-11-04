@@ -844,6 +844,7 @@ const settingsExtra: Record<string, string> = {
   "You're editing the chrome by hand, so the visual builder stays out of your way.": "أنت تعدل الواجهة يدوياً، فالمصمم المرئي يبتعد عنك.",
   "Your theme": "ثيمك",
   "Zipped themes aren't supported yet. Drop the theme file directly.": "الثيمات المضغوطة غير مدعومة. اسحب ملف الثيم مباشرة.",
+  "Harbor was updated to {tag}": "تم تحديث هاربور إلى {tag}",
 };
 
 export default settingsExtra;

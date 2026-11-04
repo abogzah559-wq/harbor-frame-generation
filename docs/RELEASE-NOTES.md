@@ -4,11 +4,31 @@ Harbor Frame Generation is a Windows build of [Harbor](https://github.com/harbor
 
 ## New in boost-6
 
-- **Icon rail.** The side menu now shows only its icons. The menu button (three lines) at the top opens it over the page with the names; pick a page, click outside or press Esc to close it.
-- **Edge-to-edge banner.** The featured film, series or anime on the home page now spans the full width of the window.
-- **Readable over any picture.** The Harbor name at the top, the search bar and the window buttons (close, maximize, minimize) sit on a dark glass backing, so they stay clear over bright images.
-- **Smooth auto-advance bar.** The bar under the banner is now animated by the GPU instead of being resized every frame, so it no longer stutters, and it keeps moving while the mouse is over the banner. It uses the theme's accent colour.
-- **Opens full screen.** Harbor starts full screen and covers the taskbar.
+### Automatic updates
+- **Silent updates.** Harbor checks this project's releases in the background. When a new one is out it downloads the installer, checks its SHA-256 against the one GitHub publishes, and installs it quietly the next time you close Harbor. Nothing interrupts what you're watching. The next launch shows a small green "updated" note with a **Details** button that opens the release notes.
+- From this release on you never need to download a setup by hand again.
+
+### Collections
+- **A Collections page** in the menu with curated collections, each in one row you can scroll sideways: Discover, Anime, Genres, Moods, TV Networks, Studios, Based On, Actors, Directors, Decades, Awards, World Cinema, Documentaries, Kids & Family and Reality TV. Duplicates were merged (anime genres sit with the genres, anime studios with the studios, and so on).
+- **Folder pages look like Harbor**: a large header, then one row per catalog with Arabic names. Rows load as you scroll to them, and a catalog that turns out empty is hidden.
+- **Networks and studios** show the company's own logo in its colours over a dimmed backdrop of its best-known title.
+- **Anime catalogs come from AniList.** The MyAnimeList API isn't reachable on every network, which left anime folders empty. Home anime rows switch to AniList on their own when MyAnimeList can't be reached.
+- Same-named rows on Home (for example two "IMDB" rows from a movie and a series catalog) are merged into one row.
+
+### Home and navigation
+- **Menu button only.** The icon rail is gone. A round menu button at the top opens the full menu with names; picking a page, clicking outside or Esc closes it.
+- **Random banner.** The featured titles change on every launch, alternating a film or series with an anime, all released within about the last year and a half. The banner keeps the top and middle of the picture so faces aren't cut off.
+- **Smoother mouse wheel.** Scrolling glides on every page, even when Windows animations are turned off.
+
+### Player
+- **Arabic subtitles with Gemini.** Add a free Gemini key in Settings > Library & metadata (a **Get key** button opens Google AI Studio). In the player's subtitle menu, **Translate to Arabic** turns any subtitle, embedded or loaded, in any language, into natural Arabic. The part you're watching is translated first; finished translations are kept and reused.
+- **Exit full screen returns to the details page** of what you were watching.
+- **Head start** never queues more frames than your target frame rate.
+
+### Settings and look
+- **Settings fully in Arabic** when the app language is Arabic.
+- **MDBList key** has a **Get key** button; with it, the MDBList collections (Dubbed Only, Donghua) open.
+- **Thmanyah font**: if the Thmanyah font is installed in Windows, Harbor uses it for all of its text, including the Harbor name. Title art and pictures are unchanged.
 
 ## New in boost-5
 
@@ -51,4 +71,4 @@ If Windows says `lua51.dll was not found` on an older Harbor install, unzip `mpv
 | Head start | **1 s** |
 | GPU limit | **80-85 %** |
 
-This build doesn't install official Harbor updates automatically, because they would replace it and remove Boost. You can check for updates manually in the settings.
+This build updates itself from this project's releases (silently, when you close Harbor). It doesn't install official Harbor updates, because they would replace it and remove Boost.

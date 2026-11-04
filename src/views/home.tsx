@@ -69,7 +69,6 @@ import {
   mergeRows,
 } from "./home/home-rows";
 import type { HomeRow } from "./home/home-types";
-import { loadNuvioPresets, NUVIO_ANIME_PREFIX } from "@/lib/nuvio/presets";
 import { interleaveHero, isRecent, launchOrder, looksAnime, recentHeroMix } from "./home/hero-mix";
 import { RowSkeleton } from "./home/row-skeleton";
 import { AddSourceModal } from "@/components/add-source-modal";
@@ -96,16 +95,6 @@ export function Home({ active = true }: { active?: boolean }) {
   const [localWatched, setLocalWatched] = useState<WatchedSet>(() => recentlyPlayed());
   useEffect(() => subscribePlayback(() => setLocalWatched(recentlyPlayed())), []);
   const [heroPool, setHeroPool] = useState<Meta[]>([]);
-  const [nuvioPresets, setNuvioPresets] = useState<SourceRow[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    void loadNuvioPresets().then((r) => {
-      if (!cancelled) setNuvioPresets(r);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const [heroMix, setHeroMix] = useState<{ general: Meta[]; anime: Meta[]; done?: boolean }>({ general: [], anime: [] });
   const [items, setItems] = useState<LibraryItem[]>([]);
   const cwVersion = useCwDismissVersion();
@@ -691,46 +680,12 @@ export function Home({ active = true }: { active?: boolean }) {
     }));
   }, [homeRowsCustom.customSources]);
 
-  /** Built-in collections, minus any the user already added himself. */
-  const presetRows = useMemo<HomeRow[]>(() => {
-    if (settings.homeMode === "classic") return [];
-    const norm = (s: string) => s.trim().toLowerCase();
-    const own = homeRowsCustom.customSources || [];
-    const ownIds = new Set(own.map((sr) => sr.id));
-    const ownTitles = new Set(own.map((sr) => norm(sr.title)));
-    return nuvioPresets
-      .filter((sr) => !ownIds.has(sr.id) && !ownTitles.has(norm(sr.title)))
-      .filter((sr) => !(settings.hideContent.anime && sr.id.startsWith(NUVIO_ANIME_PREFIX)))
-      .map((sr) => ({
-        key: sr.id,
-        type: "movie" as const,
-        name: sr.title,
-        metas: [],
-        page: 1,
-        hasMore: false,
-        sourceRow: sr,
-        noDedup: true,
-      }));
-  }, [nuvioPresets, homeRowsCustom.customSources, settings.homeMode, settings.hideContent.anime]);
-
   const pinnedRows = usePinnedRows();
   const allCustomizableRows = useMemo(() => {
-    // one collection row after every two content rows, so they never pile up;
-    // Arabic rows (series of every kind) stay at the very bottom
+    // collections live in the Collections page; Arabic rows stay at the very bottom
     const content = mergeSameNameRows([...personalRows, ...traktRows, ...simklRows, ...letterboxdRows, ...restRows, ...animeRows]);
-    const mixed: HomeRow[] = [];
-    let p = 0;
-    // spread them evenly, never two collection rows in a row; whatever doesn't
-    // fit between the content rows lives in the Collections page
-    const room = Math.max(1, Math.floor(content.length / 2));
-    const shown = presetRows.slice(0, room);
-    const every = shown.length ? Math.max(2, content.length / shown.length) : 2;
-    content.forEach((row, i) => {
-      mixed.push(row);
-      if (p < shown.length && i + 1 >= Math.round((p + 1) * every)) mixed.push(shown[p++]);
-    });
-    return [...sourceRows, ...pinnedRows, ...mixed, ...mergeSameNameRows(arabicRows)];
-  }, [sourceRows, pinnedRows, arabicRows, personalRows, traktRows, simklRows, letterboxdRows, restRows, animeRows, presetRows]);
+    return [...sourceRows, ...pinnedRows, ...content, ...mergeSameNameRows(arabicRows)];
+  }, [sourceRows, pinnedRows, arabicRows, personalRows, traktRows, simklRows, letterboxdRows, restRows, animeRows]);
   const visibleRows = useMemo(
     () => applyHomeRowCustomization(allCustomizableRows, homeRowsCustom, false),
     [allCustomizableRows, homeRowsCustom],

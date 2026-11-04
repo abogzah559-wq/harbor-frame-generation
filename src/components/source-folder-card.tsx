@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useView } from "@/lib/view";
 import type { SourceFolder } from "@/lib/custom-sources";
 import { useAuth } from "@/lib/auth";
 import { buildFolderGrid } from "@/lib/nuvio/folder-grid";
-import { useFolderLogo } from "@/lib/nuvio/logos";
+import { useFolderBackdrop, useFolderLogo } from "@/lib/nuvio/logos";
 import { Pencil, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { EditFolderImagesModal } from "./edit-folder-images-modal";
@@ -217,27 +217,61 @@ export function SourceFolderCard({
   );
 }
 
-/** A company / network logo in its own colours, centred on a soft glass tile. */
+/** A company / network logo in its own colours over a dimmed backdrop of
+ *  its best-known title. */
 function FolderLogoArt({ folder }: { folder: SourceFolder }) {
   const { settings } = useSettings();
-  const entry = useFolderLogo(settings.tmdbKey, folder.logo);
-  if (entry?.url) {
-    return (
-      <span className="absolute inset-0 flex items-center justify-center p-[14%]">
+  const { authKey } = useAuth();
+  const ref = useRef<HTMLSpanElement>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || near) return;
+    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && setNear(true), { rootMargin: "400px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [near]);
+  const entry = useFolderLogo(settings.tmdbKey, folder.logo, near);
+  const bg = useFolderBackdrop(
+    `bg:${folder.id}`,
+    async () => {
+      const res = await buildFolderGrid(folder, { tmdbKey: settings.tmdbKey, mdblistKey: settings.mdblistKey, authKey });
+      if ("error" in res) return [];
+      const tabs = res.tabs ?? [{ title: res.title, fetcher: res.fetcher }];
+      const popular = tabs.find((t) => /مشهور|شعبي|popular/i.test(t.title)) ?? tabs[0];
+      return popular.fetcher(1);
+    },
+    near,
+  );
+  return (
+    <span ref={ref} className="absolute inset-0">
+      {bg && (
         <img
-          src={entry.url}
-          alt={folder.title}
+          src={bg}
+          alt=""
           loading="lazy"
           draggable={false}
-          className="max-h-full max-w-full object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.45)] transition-transform duration-300 group-hover/card:scale-105"
-          style={entry.dark ? { filter: "brightness(0) invert(1)" } : undefined}
+          className="absolute inset-0 h-full w-full object-cover opacity-0 brightness-[0.38] saturate-[0.85] transition-[opacity,transform] duration-500 group-hover/card:scale-105 data-[on=true]:opacity-100"
+          onLoad={(e) => e.currentTarget.setAttribute("data-on", "true")}
         />
+      )}
+      <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/25" />
+      <span className="absolute inset-0 flex items-center justify-center p-[16%]">
+        {entry?.url ? (
+          <img
+            src={entry.url}
+            alt={folder.title}
+            loading="lazy"
+            draggable={false}
+            className="max-h-full max-w-full object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.7)] transition-transform duration-300 group-hover/card:scale-105"
+            style={entry.dark ? { filter: "brightness(0) invert(1) drop-shadow(0 4px 16px rgba(0,0,0,0.7))" } : undefined}
+          />
+        ) : (
+          <span className="text-center font-display text-[20px] font-bold text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)]">
+            {entry ? folder.title : ""}
+          </span>
+        )}
       </span>
-    );
-  }
-  return (
-    <span className="absolute inset-0 flex items-center justify-center p-4 text-center font-display text-[20px] font-bold text-white/90">
-      {entry ? folder.title : ""}
     </span>
   );
 }

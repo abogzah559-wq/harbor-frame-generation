@@ -33,6 +33,7 @@ reqwest = { version = "0.12", default-features = false, features = ["native-tls"
 flate2 = "1"
 uuid = { version = "1", features = ["v4"] }
 futures-util = "0.3"
+sha2 = "0.10"
 libmpv2 = "4"
 libmpv2-sys = "4"
 libc = "0.2"
