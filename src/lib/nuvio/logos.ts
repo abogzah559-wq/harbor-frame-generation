@@ -39,8 +39,7 @@ type Img = { logo_path?: string | null; name?: string };
 
 async function lookup(key: string, l: FolderLogo): Promise<string | null> {
   let path: string | null | undefined = null;
-  if (l.kind === "network") path = (await get<Img>(key, `network/${l.id}`))?.logo_path;
-  else if (l.kind === "company") path = (await get<Img>(key, `company/${l.id}`))?.logo_path;
+  if (l.kind !== "company-search") path = (await get<Img>(key, `${l.kind}/${l.id}`))?.logo_path;
   else {
     const res = await get<{ results?: Img[] }>(key, "search/company", { query: l.query });
     const list = res?.results ?? [];
