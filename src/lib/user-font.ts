@@ -9,6 +9,11 @@
 
 const CANDIDATES = [
   "Thmanyah Sans",
+  "Thmanyah Sans Regular",
+  "Thmanyah Sans Arabic",
+  "ThmanyahSans-Regular",
+  "thmanyahsans-Regular",
+  "Thmanyah Sans 1.1",
   "ThmanyahSans",
   "thmanyahsans",
   "Thmanyah",
