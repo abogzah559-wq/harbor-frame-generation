@@ -720,13 +720,15 @@ export function Home({ active = true }: { active?: boolean }) {
     const content = mergeSameNameRows([...personalRows, ...traktRows, ...simklRows, ...letterboxdRows, ...restRows, ...animeRows]);
     const mixed: HomeRow[] = [];
     let p = 0;
-    // spread them evenly through the content rows (at most one after each row)
-    const every = presetRows.length ? Math.max(1, content.length / presetRows.length) : 1;
+    // spread them evenly, never two collection rows in a row; whatever doesn't
+    // fit between the content rows lives in the Collections page
+    const room = Math.max(1, Math.floor(content.length / 2));
+    const shown = presetRows.slice(0, room);
+    const every = shown.length ? Math.max(2, content.length / shown.length) : 2;
     content.forEach((row, i) => {
       mixed.push(row);
-      if (p < presetRows.length && i + 1 >= Math.round((p + 1) * every)) mixed.push(presetRows[p++]);
+      if (p < shown.length && i + 1 >= Math.round((p + 1) * every)) mixed.push(shown[p++]);
     });
-    while (p < presetRows.length) mixed.push(presetRows[p++]);
     return [...sourceRows, ...pinnedRows, ...mixed, ...mergeSameNameRows(arabicRows)];
   }, [sourceRows, pinnedRows, arabicRows, personalRows, traktRows, simklRows, letterboxdRows, restRows, animeRows, presetRows]);
   const visibleRows = useMemo(
