@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { BackToTop } from "@/components/back-to-top";
 import { HeroCarousel, type Slide } from "@/components/hero-carousel";
-import { CollectionsRow } from "@/components/collections-row";
 import { TmdbNudge } from "@/components/nudge";
 import { Row, ScrollRootContext } from "@/components/row";
 import {
@@ -69,6 +68,7 @@ import {
   mergeRows,
 } from "./home/home-rows";
 import type { HomeRow } from "./home/home-types";
+import { loadNuvioPresets } from "@/lib/nuvio/presets";
 import { interleaveHero, isRecent, launchOrder, looksAnime, recentHeroMix } from "./home/hero-mix";
 import { RowSkeleton } from "./home/row-skeleton";
 import { AddSourceModal } from "@/components/add-source-modal";
@@ -681,11 +681,53 @@ export function Home({ active = true }: { active?: boolean }) {
   }, [homeRowsCustom.customSources]);
 
   const pinnedRows = usePinnedRows();
+  // Home shows a few collections, placed with the rows they belong to: film &
+  // series collections spaced through the film & series rows, the anime
+  // collection right before the anime rows. Everything else is in Collections.
+  const [nuvioPresets, setNuvioPresets] = useState<SourceRow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void loadNuvioPresets().then((r) => !cancelled && setNuvioPresets(r));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const homePreset = useCallback(
+    (id: string): HomeRow | null => {
+      if (settings.homeMode === "classic") return null;
+      const sr = nuvioPresets.find((p) => p.id === id);
+      if (!sr) return null;
+      return { key: sr.id, type: "movie", name: sr.title, metas: [], page: 1, hasMore: false, sourceRow: sr, noDedup: true };
+    },
+    [nuvioPresets, settings.homeMode],
+  );
+
   const allCustomizableRows = useMemo(() => {
-    // collections live in the Collections page; Arabic rows stay at the very bottom
-    const content = mergeSameNameRows([...personalRows, ...traktRows, ...simklRows, ...letterboxdRows, ...restRows, ...animeRows]);
-    return [...sourceRows, ...pinnedRows, ...content, ...mergeSameNameRows(arabicRows)];
-  }, [sourceRows, pinnedRows, arabicRows, personalRows, traktRows, simklRows, letterboxdRows, restRows, animeRows]);
+    const filmRows = mergeSameNameRows([...personalRows, ...traktRows, ...simklRows, ...letterboxdRows, ...restRows]);
+    const filmCollections = ["nuvio-discover", "nuvio-genres", "nuvio-moods", "nuvio-based-on"]
+      .map(homePreset)
+      .filter((r): r is HomeRow => !!r);
+    const mixed: HomeRow[] = [];
+    // first collection right after the opening row, then one every few rows
+    const slots = filmCollections.length;
+    const gap = slots ? Math.max(2, Math.floor((filmRows.length - 1) / slots)) : 0;
+    let c = 0;
+    filmRows.forEach((row, i) => {
+      mixed.push(row);
+      if (c < slots && (i === 0 || (i > 0 && i % gap === 0))) mixed.push(filmCollections[c++]);
+    });
+    while (c < slots && mixed.length && !mixed[mixed.length - 1].sourceRow) mixed.push(filmCollections[c++]);
+    const anime = settings.hideContent.anime ? null : homePreset("nuvio-anime");
+    const animeBlock = mergeSameNameRows(animeRows);
+    return [
+      ...sourceRows,
+      ...pinnedRows,
+      ...mixed,
+      ...(anime ? [anime] : []),
+      ...animeBlock,
+      ...mergeSameNameRows(arabicRows),
+    ];
+  }, [sourceRows, pinnedRows, arabicRows, personalRows, traktRows, simklRows, letterboxdRows, restRows, animeRows, homePreset, settings.hideContent.anime]);
   const visibleRows = useMemo(
     () => applyHomeRowCustomization(allCustomizableRows, homeRowsCustom, false),
     [allCustomizableRows, homeRowsCustom],
@@ -882,25 +924,6 @@ export function Home({ active = true }: { active?: boolean }) {
               label={t("Top 10 Trending This Week")}
               hidden
               onToggleHidden={() => handleToggleHidden("top10")}
-            />
-          )}
-          {settings.homeMode !== "classic" && settings.tmdbKey && !homeRowsCustom.hidden.includes("collections") && (
-            <div data-scroll-anchor="collections">
-              {editMode && (
-                <PinnedRowControls
-                  label={t("Collections")}
-                  hidden={false}
-                  onToggleHidden={() => handleToggleHidden("collections")}
-                />
-              )}
-              <CollectionsRow />
-            </div>
-          )}
-          {editMode && settings.homeMode !== "classic" && settings.tmdbKey && homeRowsCustom.hidden.includes("collections") && (
-            <PinnedRowControls
-              label={t("Collections")}
-              hidden
-              onToggleHidden={() => handleToggleHidden("collections")}
             />
           )}
           {rows.length === 0 && traktRows.length === 0 && simklRows.length === 0 && animeRows.length === 0 && arabicRows.length === 0 ? (

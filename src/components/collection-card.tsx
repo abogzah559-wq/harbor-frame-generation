@@ -1,6 +1,7 @@
 import { Layers } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useT } from "@/lib/i18n";
+import { getUiLanguage, useT } from "@/lib/i18n";
+import { get } from "@/lib/providers/tmdb/tmdb-client";
 import { collectionNameMatches, tmdbCollection, tmdbSearchCollectionId } from "@/lib/providers/tmdb";
 import { useSettings } from "@/lib/settings";
 import { useView } from "@/lib/view";
@@ -24,6 +25,7 @@ export function CollectionCard({
   const [backdrop, setBackdrop] = useState<string | null>(knownBackdrop ?? null);
   const [count, setCount] = useState<number | null>(knownCount ?? null);
   const [resolvedId, setResolvedId] = useState<number>(id);
+  const [localName, setLocalName] = useState<string | null>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -43,7 +45,7 @@ export function CollectionCard({
 
   useEffect(() => {
     if (!inView) return;
-    if (knownBackdrop && knownCount != null) return;
+    if (knownBackdrop && knownCount != null && getUiLanguage() !== "ar") return;
     let cancelled = false;
     void (async () => {
       let c = id > 0 ? await tmdbCollection(settings.tmdbKey, id).catch(() => null) : null;
@@ -57,6 +59,13 @@ export function CollectionCard({
       setBackdrop(c.backdrop ?? null);
       setCount(c.parts.length);
       setResolvedId(c.id);
+      // the collection's name in Arabic when the app is in Arabic and TMDB has it
+      if (getUiLanguage() === "ar") {
+        const ar = /[\u0600-\u06FF]/.test(c.name ?? "")
+          ? c.name
+          : (await get<{ name?: string }>(settings.tmdbKey, `collection/${c.id}`, { language: "ar" }).catch(() => null))?.name;
+        if (!cancelled && ar && /[\u0600-\u06FF]/.test(ar)) setLocalName(ar);
+      }
     })();
     return () => {
       cancelled = true;
@@ -94,7 +103,7 @@ export function CollectionCard({
         {count != null ? t("{count} films", { count }) : t("Collection")}
       </span>
       <h3 className="absolute inset-x-4 bottom-3.5 font-display text-[21px] font-medium leading-[1.08] tracking-tight text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.7)]">
-        {name}
+        {localName ?? name}
       </h3>
     </button>
   );

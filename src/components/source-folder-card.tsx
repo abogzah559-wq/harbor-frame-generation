@@ -70,6 +70,8 @@ export function SourceFolderCard({
       >
         {isLogo ? (
           <FolderLogoArt folder={folder} />
+        ) : folder.art === "content" ? (
+          <FolderContentArt folder={folder} />
         ) : (
           <>
             {folder.coverImageUrl && (
@@ -103,9 +105,10 @@ export function SourceFolderCard({
         <div aria-hidden className="absolute inset-0 bg-black/10 transition-colors duration-300 group-hover/card:bg-black/0" />
 
         {showTitle && (
-          <h3 className="absolute inset-x-4 bottom-3.5 font-display text-[22px] font-bold leading-[1.15] text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.75)]">
-            {folder.title}
-          </h3>
+          <div className="absolute bottom-4 start-5 end-5 flex flex-col gap-1 border-s-[3px] border-white/85 ps-3 text-start drop-shadow-[0_2px_14px_rgba(0,0,0,0.85)]">
+            <h3 className="font-display text-[27px] font-extrabold leading-[1.1] text-white">{folder.title}</h3>
+            {folder.subtitle && <p className="text-[12.5px] font-medium leading-snug text-white/85">{folder.subtitle}</p>}
+          </div>
         )}
         {loading && (
           <span className="absolute inset-0 flex items-center justify-center bg-black/35">
@@ -272,6 +275,49 @@ function FolderLogoArt({ folder }: { folder: SourceFolder }) {
           </span>
         )}
       </span>
+    </span>
+  );
+}
+
+/** A picture from the folder's own catalog (its best-known title), so the
+ *  tile has no baked-in text and the title is written over it. */
+function FolderContentArt({ folder }: { folder: SourceFolder }) {
+  const { settings } = useSettings();
+  const { authKey } = useAuth();
+  const ref = useRef<HTMLSpanElement>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || near) return;
+    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && setNear(true), { rootMargin: "400px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [near]);
+  const bg = useFolderBackdrop(
+    `art:${folder.id}`,
+    async () => {
+      const res = await buildFolderGrid(folder, { tmdbKey: settings.tmdbKey, mdblistKey: settings.mdblistKey, authKey });
+      if ("error" in res) return [];
+      const tabs = res.tabs ?? [{ title: res.title, fetcher: res.fetcher }];
+      const pick = tabs.find((x) => /رائج|مشهور|شعبي|popular|trend/i.test(x.title)) ?? tabs[0];
+      return pick.fetcher(1);
+    },
+    near,
+  );
+  return (
+    <span ref={ref} className="absolute inset-0 bg-gradient-to-br from-white/[0.06] to-transparent">
+      {bg && (
+        <img
+          src={bg.replace("/t/p/w780/", "/t/p/w1280/")}
+          alt=""
+          loading="lazy"
+          draggable={false}
+          className="absolute inset-0 h-full w-full object-cover opacity-0 transition-[opacity,transform] duration-500 group-hover/card:scale-105 data-[on=true]:opacity-100"
+          onLoad={(e) => e.currentTarget.setAttribute("data-on", "true")}
+        />
+      )}
+      <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+      <span aria-hidden className="absolute inset-0 bg-gradient-to-l from-black/35 via-transparent to-transparent rtl:bg-gradient-to-r" />
     </span>
   );
 }

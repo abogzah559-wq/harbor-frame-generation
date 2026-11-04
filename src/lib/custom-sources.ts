@@ -40,6 +40,10 @@ export type SourceFolder = {
   logo?: FolderLogo;
   /** the cover has English text baked in on its left/bottom: crop to the picture and show the title */
   coverCrop?: boolean;
+  /** "content": the tile's picture comes from the folder's own catalog (best-known title) */
+  art?: string;
+  /** one short line under the title */
+  subtitle?: string;
   hideTitle?: boolean;
   catalogSources?: CatalogSource[];
   sources?: NativeSource[];
