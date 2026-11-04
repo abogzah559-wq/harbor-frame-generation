@@ -159,24 +159,9 @@ function nativeTab(source: NativeSource, folder: SourceFolder, ctx: Ctx): GridTa
   return null;
 }
 
-/** Interleaves the first pages of every tab ("All"). */
-function allTab(tabs: GridTab[], title: string): GridTab {
-  return {
-    title,
-    fetcher: async (page) => {
-      const lists = await Promise.all(tabs.map((t) => t.fetcher(page).catch(() => [] as Meta[])));
-      const out: Meta[] = [];
-      const longest = Math.max(0, ...lists.map((l) => l.length));
-      for (let i = 0; i < longest; i++) for (const l of lists) if (l[i]) out.push(l[i]);
-      return out;
-    },
-  };
-}
-
 export async function buildFolderGrid(
   folder: SourceFolder,
   ctx: Ctx,
-  opts: { allTitle?: string; showAllTab?: boolean } = {},
 ): Promise<GridSpec | FolderGridError> {
   const tabs: GridTab[] = [];
   let needKey = false;
@@ -218,12 +203,13 @@ export async function buildFolderGrid(
     seen.set(t.title, n);
     if (n > 1) t.title = `${t.title} ${n}`;
   }
-  const list = tabs.length > 1 && opts.showAllTab ? [allTab(tabs, opts.allTitle ?? "All"), ...tabs] : tabs;
+  const list = tabs;
   return {
     title: folder.title,
     fetcher: list[0].fetcher,
     tabs: list.length > 1 ? list : undefined,
     backdrop: folder.heroBackdropUrl ?? undefined,
     logo: folder.titleLogoUrl ?? undefined,
+    folderLogo: folder.logo,
   };
 }

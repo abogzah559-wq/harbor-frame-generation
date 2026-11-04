@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { BackToTop } from "@/components/back-to-top";
 import { PickCard } from "@/components/pick-card";
+import { Row } from "@/components/row";
+import { useFolderLogo } from "@/lib/nuvio/logos";
+import { useSettings } from "@/lib/settings";
 import type { Meta } from "@/lib/cinemeta";
 import { useT } from "@/lib/i18n";
 import { layoutHasGlobalBack } from "@/lib/theme";
@@ -10,33 +13,169 @@ import { useScrollMemory, useView, type GridSpec } from "@/lib/view";
 const PAGE_CAP = 40;
 
 export function GridView({ grid }: { grid: GridSpec }) {
-  const [tab, setTab] = useState(0);
-  if (!grid.tabs?.length) return <GridPane grid={grid} />;
-  const current = grid.tabs[Math.min(tab, grid.tabs.length - 1)];
+  if (grid.tabs?.length) return <FolderRowsView grid={grid} />;
+  return <GridPane grid={grid} />;
+}
+
+/** A collection folder with several catalogs: a header, then one Harbor row
+ *  per catalog. Rows load only when you scroll near them. */
+function FolderRowsView({ grid }: { grid: GridSpec }) {
+  const { goBack, openGrid } = useView();
+  const t = useT();
+  const scrollRef = useRef<HTMLElement>(null);
+  useScrollMemory(`folder:${grid.title}`, scrollRef);
   return (
-    <GridPane
-      key={`tab-${tab}`}
-      grid={{ ...grid, fetcher: current.fetcher, initial: undefined }}
-      scrollKey={`grid:${grid.title}:${tab}`}
-      tabBar={
-        <div className="flex flex-wrap gap-2">
-          {grid.tabs.map((tb, i) => (
-            <button
-              key={`${tb.title}-${i}`}
-              type="button"
-              onClick={() => setTab(i)}
-              className={`h-9 rounded-full border px-4 text-[13.5px] font-medium transition-colors ${
-                i === tab
-                  ? "border-transparent bg-accent text-white"
-                  : "border-edge-soft bg-elevated/60 text-ink-muted hover:bg-raised hover:text-ink"
-              }`}
-            >
-              {tb.title}
-            </button>
-          ))}
+    <main ref={scrollRef} className="absolute inset-0 z-30 overflow-y-auto bg-canvas">
+      <FolderHeader grid={grid} onBack={goBack} />
+      <div className="flex w-full flex-col gap-10 px-12 pb-24 pt-2">
+        {grid.tabs!.map((tab, i) => (
+          <LazyFolderRow
+            key={`${tab.title}-${i}`}
+            title={tab.title}
+            fetcher={tab.fetcher}
+            eager={i < 2}
+            onViewAll={(initial) => openGrid({ title: `${grid.title} · ${tab.title}`, fetcher: tab.fetcher, initial })}
+            emptyLabel={t("Nothing here yet.")}
+          />
+        ))}
+      </div>
+      <BackToTop scrollRef={scrollRef} />
+    </main>
+  );
+}
+
+function FolderHeader({ grid, onBack }: { grid: GridSpec; onBack: () => void }) {
+  const { settings } = useSettings();
+  const logoEntry = useFolderLogo(settings.tmdbKey, grid.logo ? undefined : grid.folderLogo);
+  const logo = grid.logo ?? logoEntry?.url ?? undefined;
+  return (
+    <section className={`relative w-full overflow-hidden ${grid.backdrop ? "h-[46vh] min-h-[340px]" : "h-[300px]"}`}>
+      {grid.backdrop ? (
+        <img src={grid.backdrop} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
+      )}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-canvas via-canvas/40 to-transparent" />
+      {!layoutHasGlobalBack() && (
+        <button
+          onClick={onBack}
+          aria-label="Back"
+          className="absolute start-12 top-24 flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-md transition-colors hover:bg-black/65"
+        >
+          <ArrowLeft size={18} strokeWidth={2.2} className="dir-icon" />
+        </button>
+      )}
+      <div className="absolute inset-x-0 bottom-0 flex flex-col items-start gap-3 px-12 pb-6">
+        {logo ? (
+          <img
+            src={logo}
+            alt={grid.title}
+            draggable={false}
+            className="max-h-[110px] max-w-[min(480px,55%)] object-contain drop-shadow-[0_6px_24px_rgba(0,0,0,0.65)]"
+            style={!grid.logo && logoEntry?.dark ? { filter: "brightness(0) invert(1)" } : undefined}
+          />
+        ) : (
+          <h1 className="font-display text-[clamp(34px,4.6vw,58px)] font-bold leading-tight text-white drop-shadow-[0_4px_18px_rgba(0,0,0,0.7)]">
+            {grid.title}
+          </h1>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function LazyFolderRow({
+  title,
+  fetcher,
+  eager,
+  onViewAll,
+  emptyLabel,
+}: {
+  title: string;
+  fetcher: (page: number) => Promise<Meta[]>;
+  eager: boolean;
+  onViewAll: (initial: Meta[]) => void;
+  emptyLabel: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [near, setNear] = useState(eager);
+  const [metas, setMetas] = useState<Meta[] | null>(null);
+  const [page, setPage] = useState(0);
+  const [more, setMore] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const busy = useRef(false);
+
+  useEffect(() => {
+    if (near) return;
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver((e) => e.some((x) => x.isIntersecting) && setNear(true), {
+      rootMargin: "600px 0px",
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [near]);
+
+  const load = (next: number) => {
+    if (busy.current) return;
+    busy.current = true;
+    fetcher(next)
+      .then((batch) => {
+        setPage(next);
+        setMetas((prev) => {
+          const seen = new Set((prev ?? []).map((m) => m.id));
+          const fresh = batch.filter((m) => m?.id && !seen.has(m.id));
+          if (!fresh.length) setMore(false);
+          return [...(prev ?? []), ...fresh];
+        });
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : String(e));
+        setMetas((prev) => prev ?? []);
+        setMore(false);
+      })
+      .finally(() => {
+        busy.current = false;
+      });
+  };
+
+  useEffect(() => {
+    if (near && page === 0) load(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [near]);
+
+  // a catalog that turned out empty is left out instead of showing a blank row
+  if (metas && metas.length === 0 && !error) return null;
+
+  return (
+    <div ref={ref} className="min-h-[300px]">
+      {metas === null ? (
+        <div className="flex flex-col gap-4">
+          <h2 className="font-display text-[22px] font-semibold text-ink">{title}</h2>
+          <div className="flex gap-4 overflow-hidden">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div key={i} className="aspect-[2/3] w-[170px] shrink-0 animate-pulse rounded-xl bg-elevated/60" />
+            ))}
+          </div>
         </div>
-      }
-    />
+      ) : metas.length === 0 ? (
+        <p className="text-[13px] text-ink-subtle">
+          {title}: {emptyLabel} {error ? `(${error})` : ""}
+        </p>
+      ) : (
+        <Row
+          title={title}
+          min={170}
+          arrowsAlways
+          onEndReached={more ? () => load(page + 1) : undefined}
+          onViewAll={() => onViewAll(metas)}
+        >
+          {metas.map((m, i) => (
+            <PickCard key={`${m.id}-${i}`} meta={m} />
+          ))}
+        </Row>
+      )}
+    </div>
   );
 }
 
@@ -48,6 +187,7 @@ function GridPane({ grid, scrollKey, tabBar }: { grid: GridSpec; scrollKey?: str
   const [metas, setMetas] = useState<Meta[]>(grid.initial ?? []);
   const [page, setPage] = useState(grid.initial?.length ? 1 : 0);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const loadingRef = useRef(false);
   useScrollMemory(scrollKey ?? `grid:${grid.title}`, scrollRef);
 
@@ -75,7 +215,10 @@ function GridPane({ grid, scrollKey, tabBar }: { grid: GridSpec; scrollKey?: str
               return [...prev, ...fresh];
             });
           })
-          .catch(() => setDone(true))
+          .catch((e) => {
+            setError(e instanceof Error ? e.message : String(e));
+            setDone(true);
+          })
           .finally(() => {
             loadingRef.current = false;
           });
@@ -96,6 +239,13 @@ function GridPane({ grid, scrollKey, tabBar }: { grid: GridSpec; scrollKey?: str
           <PickCard key={`${m.id}-${i}`} meta={m} kids={!!hero} />
         ))}
       </div>
+      {!done && metas.length === 0 && (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-4 gap-y-8">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="aspect-[2/3] animate-pulse rounded-xl bg-elevated/60" />
+          ))}
+        </div>
+      )}
       {!done && <div ref={sentinelRef} className="h-24" />}
       {done &&
         metas.length === 0 &&
@@ -105,7 +255,9 @@ function GridPane({ grid, scrollKey, tabBar }: { grid: GridSpec; scrollKey?: str
             <p className="font-display text-[24px] font-bold text-[#0e3a43]">{t("Nothing here yet!")}</p>
           </div>
         ) : (
-          <p className="py-20 text-center text-[14px] text-ink-subtle">Nothing here yet.</p>
+          <p className="py-20 text-center text-[14px] text-ink-subtle">
+            {t("Nothing here yet.")} {error ? `(${error})` : ""}
+          </p>
         ))}
     </>
   );

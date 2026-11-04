@@ -121,6 +121,7 @@ const DetailView = lazy(() => importDetail().then((m) => ({ default: m.DetailVie
 const AddonsView = lazy(() => importAddons().then((m) => ({ default: m.AddonsView })));
 const Discover = lazy(() => importDiscover().then((m) => ({ default: m.Discover })));
 const Catalogs = lazy(() => importCatalogs().then((m) => ({ default: m.Catalogs })));
+const CollectionsHub = lazy(() => import("@/views/collections-hub").then((m) => ({ default: m.CollectionsHub })));
 const AwardView = lazy(() => importAward().then((m) => ({ default: m.AwardView })));
 const AnimeAwardView = lazy(() => importAnimeAward().then((m) => ({ default: m.AnimeAwardView })));
 const FilterView = lazy(() => importFilter().then((m) => ({ default: m.FilterView })));
@@ -677,6 +678,7 @@ function Shell() {
   const animeTop = topKind === "anime";
   const discoverTop = topKind === "discover";
   const catalogsTop = topKind === "catalogs";
+  const hubTop = topKind === "hub";
   const addonsTop = topKind === "addons" || topKind === "addon-detail";
   const calendarTop = topKind === "calendar";
   const queueTop = topKind === "queue";
@@ -720,6 +722,7 @@ function Shell() {
   const animeAlive = useIdleEvict(animeTop);
   const discoverAlive = useIdleEvict(discoverTop);
   const catalogsAlive = useIdleEvict(catalogsTop);
+  const hubAlive = useIdleEvict(hubTop);
   const addonsAlive = useIdleEvict(addonsTop);
   const calendarAlive = useIdleEvict(calendarTop);
   const queueAlive = useKeepAlive(queueTop, queueTop);
@@ -803,6 +806,13 @@ function Shell() {
           <div className={layer(catalogsTop)}>
             <Suspense fallback={null}>
               <Catalogs active={catalogsTop} />
+            </Suspense>
+          </div>
+        )}
+        {hubAlive && (
+          <div className={layer(hubTop)}>
+            <Suspense fallback={null}>
+              <CollectionsHub />
             </Suspense>
           </div>
         )}

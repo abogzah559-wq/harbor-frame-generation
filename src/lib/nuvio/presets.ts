@@ -2,7 +2,7 @@ import type { SourceRow } from "@/lib/custom-sources";
 
 /** Built-in collections (from the user's Nuvio profiles), shipped as a static
  *  file so they are always there without being copied into settings. */
-export const NUVIO_ANIME_PREFIX = "nuvio-anime-";
+export const NUVIO_ANIME_PREFIX = "nuvio-anime";
 
 let cached: Promise<SourceRow[]> | null = null;
 

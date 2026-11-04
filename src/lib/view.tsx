@@ -6,7 +6,7 @@ import { useTogether } from "./together/provider";
 import type { SportsGame } from "./sports/espn";
 import { beginMarathonAdvance } from "./fullscreen-state";
 import { runNavGuard } from "./nav-guard";
-export type View = "home" | "settings" | "anime" | "discover" | "catalogs" | "addons" | "calendar" | "movies" | "shows" | "kids" | "library" | "live" | "vod" | "downloads";
+export type View = "home" | "settings" | "anime" | "discover" | "catalogs" | "hub" | "addons" | "calendar" | "movies" | "shows" | "kids" | "library" | "live" | "vod" | "downloads";
 
 export type PlayEpisode = {
   season: number;
@@ -70,6 +70,8 @@ export type GridSpec = {
   /** header art (Nuvio folder backdrop and title logo) */
   backdrop?: string;
   logo?: string;
+  /** company / network logo looked up on TMDB (when there's no logo image) */
+  folderLogo?: import("@/lib/custom-sources").FolderLogo;
   initial?: Meta[];
   kidsHero?: { grad: string; art: string; name: string };
 };
@@ -89,6 +91,7 @@ export type Frame =
   | { kind: "anime" }
   | { kind: "discover" }
   | { kind: "catalogs" }
+  | { kind: "hub" }
   | { kind: "addons" }
   | { kind: "addon-detail"; id: string }
   | { kind: "calendar" }
@@ -220,6 +223,8 @@ function frameKey(f: Frame): string {
       return "discover";
     case "catalogs":
       return "catalogs";
+    case "hub":
+      return "hub";
     case "addons":
       return "addons";
     case "addon-detail":
@@ -347,6 +352,7 @@ export function ViewProvider({ children }: { children: ReactNode }) {
       if (f.kind === "addons" || f.kind === "addon-detail") return "addons";
       if (f.kind === "discover" || f.kind === "queue") return "discover";
       if (f.kind === "catalogs") return "catalogs";
+      if (f.kind === "hub") return "hub";
       if (f.kind === "calendar") return "calendar";
       if (f.kind === "movies") return "movies";
       if (f.kind === "shows") return "shows";
@@ -512,6 +518,11 @@ export function ViewProvider({ children }: { children: ReactNode }) {
         scrollMem.current.clear();
         rowScrollMem.current.clear();
         return [{ kind: "catalogs" }];
+      }
+      if (v === "hub") {
+        scrollMem.current.clear();
+        rowScrollMem.current.clear();
+        return [{ kind: "hub" }];
       }
       if (v === "addons") {
         scrollMem.current.clear();

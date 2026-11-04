@@ -2,6 +2,7 @@ const en: Record<string, string> = {
   "nav.home": "Home",
   "nav.discover": "Discover",
   "nav.catalogs": "Catalogs",
+  "nav.hub": "Collections",
   "nav.movies": "Movies",
   "nav.shows": "Shows",
   "nav.kids": "Watch",

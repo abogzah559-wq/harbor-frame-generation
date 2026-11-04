@@ -21,6 +21,10 @@ export type NativeSource = {
   listId?: string;
 };
 
+export type FolderLogo =
+  | { kind: "network" | "company"; id: number }
+  | { kind: "company-search"; query: string };
+
 export type SourceFolder = {
   id: string;
   title: string;
@@ -30,6 +34,10 @@ export type SourceFolder = {
   tileShape: "LANDSCAPE" | "POSTER" | "SQUARE";
   heroBackdropUrl?: string | null;
   titleLogoUrl?: string | null;
+  /** show the company / network logo (from TMDB) instead of a cover */
+  logo?: FolderLogo;
+  /** the cover has English text baked in on its left/bottom: crop to the picture and show the title */
+  coverCrop?: boolean;
   hideTitle?: boolean;
   catalogSources?: CatalogSource[];
   sources?: NativeSource[];
@@ -44,6 +52,8 @@ export type SourceRow = {
   focusGlowEnabled?: boolean;
   viewMode?: string;
   showAllTab?: boolean;
+  /** "logo": tiles are company / network logos */
+  layout?: string;
   folders: SourceFolder[];
 };
 

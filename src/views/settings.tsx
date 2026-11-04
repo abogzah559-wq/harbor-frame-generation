@@ -28,7 +28,8 @@ import { BackToTop } from "@/components/back-to-top";
 import { resetOmdbBudget } from "@/lib/providers/omdb";
 import { useSettings } from "@/lib/settings";
 import { useView } from "@/lib/view";
-import { useT } from "@/lib/i18n";
+import { useT, useUiLanguage } from "@/lib/i18n";
+import { keepTranslated } from "@/lib/i18n/dom-translate";
 import { SettingsUnsavedChanges } from "./settings/unsaved-changes";
 
 const IS_WEB = typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window);
@@ -149,6 +150,10 @@ export function Settings({ active: activeView = true }: { active?: boolean }) {
   const [relayMode, setRelayMode] = useState<RelayMode>("panel");
   const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
   const scrollRef = useRef<HTMLElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const uiLang = useUiLanguage();
+  // labels written straight into the markup get their Arabic too
+  useEffect(() => (rootRef.current ? keepTranslated(rootRef.current) : undefined), [uiLang]);
 
   const handleNav = (id: SectionId, anchor?: string) => {
     setActive(id);
@@ -237,7 +242,7 @@ export function Settings({ active: activeView = true }: { active?: boolean }) {
 
   return (
     <SettingsActiveContext.Provider value={{ setActive }}>
-    <div className="flex h-full bg-canvas">
+    <div ref={rootRef} className="flex h-full bg-canvas">
       <SettingsNav active={active} onChange={handleNav} />
       <main
         ref={scrollRef}

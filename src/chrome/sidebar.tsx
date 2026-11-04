@@ -12,7 +12,7 @@ import { useView, type View } from "@/lib/view";
 import { KidsSidebarDoodles } from "./kids-sidebar-doodles";
 import { NAV_ITEMS, applyNavCustomization, type NavItem } from "@/chrome/nav-items";
 
-const PRIMARY_IDS = new Set(["home", "discover", "catalogs", "movies", "shows", "kids", "anime", "live", "vod"]);
+const PRIMARY_IDS = new Set(["home", "discover", "catalogs", "hub", "movies", "shows", "kids", "anime", "live", "vod"]);
 
 export function Sidebar() {
   const { view, setView, chromeHidden } = useView();

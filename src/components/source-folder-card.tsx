@@ -3,6 +3,7 @@ import { useView } from "@/lib/view";
 import type { SourceFolder } from "@/lib/custom-sources";
 import { useAuth } from "@/lib/auth";
 import { buildFolderGrid } from "@/lib/nuvio/folder-grid";
+import { useFolderLogo } from "@/lib/nuvio/logos";
 import { Pencil, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { EditFolderImagesModal } from "./edit-folder-images-modal";
@@ -14,10 +15,8 @@ export function SourceFolderCard({
   editMode,
   sourceId,
   onEditFolderImages,
-  showAllTab,
 }: {
   folder: SourceFolder;
-  showAllTab?: boolean;
   editMode?: boolean;
   sourceId?: string;
   onEditFolderImages?: (sourceId: string, folderId: string, cover: string, gif: string) => void;
@@ -36,10 +35,7 @@ export function SourceFolderCard({
     if (loading) return;
     setLoading(true);
     try {
-      const res = await buildFolderGrid(folder, { tmdbKey: settings.tmdbKey, mdblistKey: settings.mdblistKey, authKey }, {
-        showAllTab,
-        allTitle: t("All"),
-      });
+      const res = await buildFolderGrid(folder, { tmdbKey: settings.tmdbKey, mdblistKey: settings.mdblistKey, authKey });
       if ("error" in res) {
         if (res.error === "tmdb-key") setMissingTmdbKey("tmdb");
         else if (res.error === "mdblist-key") setMissingTmdbKey("mdblist");
@@ -52,8 +48,10 @@ export function SourceFolderCard({
     }
   };
 
-  const isPoster = folder.tileShape === "POSTER";
-  const aspectRatio = isPoster ? "aspect-[2/3]" : folder.tileShape === "SQUARE" ? "aspect-square" : "aspect-[16/9]";
+  const isLogo = !!folder.logo;
+  const isPoster = !isLogo && folder.tileShape === "POSTER";
+  const aspectRatio = isPoster ? "aspect-[2/3]" : "aspect-[16/9]";
+  const showTitle = !folder.hideTitle && !isLogo;
 
   return (
     <>
@@ -62,58 +60,73 @@ export function SourceFolderCard({
         onClick={handleClick}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
-      onFocus={() => setHover(true)}
-      onBlur={() => setHover(false)}
-      disabled={loading}
-      className={`group/card relative ${aspectRatio} w-full flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-edge-soft bg-surface text-start shadow-[0_4px_18px_-10px_rgba(0,0,0,0.5)] ring-1 ring-inset ring-white/0 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-edge hover:ring-white/15 disabled:opacity-50`}
-    >
-      {folder.coverImageUrl && (
-        <img
-          src={folder.coverImageUrl}
-          alt=""
-          loading="lazy"
-          draggable={false}
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-            hover && folder.focusGifUrl ? "opacity-0" : "opacity-100"
-          }`}
-        />
-      )}
+        onFocus={() => setHover(true)}
+        onBlur={() => setHover(false)}
+        disabled={loading}
+        title={isLogo ? folder.title : undefined}
+        className={`group/card relative ${aspectRatio} w-full flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-edge-soft text-start shadow-[0_4px_18px_-10px_rgba(0,0,0,0.5)] ring-1 ring-inset ring-white/0 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-edge hover:ring-white/15 ${
+          isLogo ? "bg-gradient-to-br from-white/[0.07] to-white/[0.02]" : "bg-surface"
+        }`}
+      >
+        {isLogo ? (
+          <FolderLogoArt folder={folder} />
+        ) : (
+          <>
+            {folder.coverImageUrl && (
+              <img
+                src={folder.coverImageUrl}
+                alt=""
+                loading="lazy"
+                draggable={false}
+                style={folder.coverCrop ? { transform: "scale(1.8)", transformOrigin: "100% 0%" } : undefined}
+                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+                  hover && folder.focusGifUrl ? "opacity-0" : "opacity-100"
+                }`}
+              />
+            )}
+            {folder.focusGifUrl && (
+              <img
+                src={folder.focusGifUrl}
+                alt=""
+                loading="lazy"
+                draggable={false}
+                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+                  hover ? "opacity-100" : "opacity-0"
+                }`}
+              />
+            )}
+            {showTitle && (
+              <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+            )}
+          </>
+        )}
+        <div aria-hidden className="absolute inset-0 bg-black/10 transition-colors duration-300 group-hover/card:bg-black/0" />
 
-      {folder.focusGifUrl && (
-        <img
-          src={folder.focusGifUrl}
-          alt=""
-          loading="lazy"
-          draggable={false}
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-            hover ? "opacity-100" : "opacity-0"
-          }`}
-        />
-      )}
+        {showTitle && (
+          <h3 className="absolute inset-x-4 bottom-3.5 font-display text-[22px] font-bold leading-[1.15] text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.75)]">
+            {folder.title}
+          </h3>
+        )}
+        {loading && (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/35">
+            <span className="h-7 w-7 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          </span>
+        )}
 
-      <div aria-hidden className="absolute inset-0 bg-black/15 transition-colors duration-300 group-hover/card:bg-black/0" />
-      <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/30 to-transparent" />
-
-      {!folder.hideTitle && (
-        <h3 className="absolute inset-x-4 bottom-3.5 font-display text-[21px] font-medium leading-[1.08] tracking-tight text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.7)]">
-          {folder.title}
-        </h3>
-      )}
-
-      {editMode && sourceId && onEditFolderImages && (
-        <div
-          className="absolute end-3 top-3 z-10"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsEditModalOpen(true);
-          }}
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition-colors hover:bg-accent">
-            <Pencil className="h-4 w-4" />
+        {editMode && sourceId && onEditFolderImages && (
+          <div
+            className="absolute end-3 top-3 z-10"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsEditModalOpen(true);
+            }}
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-md transition-colors hover:bg-accent">
+              <Pencil className="h-4 w-4" />
+            </div>
           </div>
-        </div>
-      )}
-    </button>
+        )}
+      </button>
 
     {errorAddon && createPortal(
       <div
@@ -201,5 +214,30 @@ export function SourceFolderCard({
       />
     )}
     </>
+  );
+}
+
+/** A company / network logo in its own colours, centred on a soft glass tile. */
+function FolderLogoArt({ folder }: { folder: SourceFolder }) {
+  const { settings } = useSettings();
+  const entry = useFolderLogo(settings.tmdbKey, folder.logo);
+  if (entry?.url) {
+    return (
+      <span className="absolute inset-0 flex items-center justify-center p-[14%]">
+        <img
+          src={entry.url}
+          alt={folder.title}
+          loading="lazy"
+          draggable={false}
+          className="max-h-full max-w-full object-contain drop-shadow-[0_4px_14px_rgba(0,0,0,0.45)] transition-transform duration-300 group-hover/card:scale-105"
+          style={entry.dark ? { filter: "brightness(0) invert(1)" } : undefined}
+        />
+      </span>
+    );
+  }
+  return (
+    <span className="absolute inset-0 flex items-center justify-center p-4 text-center font-display text-[20px] font-bold text-white/90">
+      {entry ? folder.title : ""}
+    </span>
   );
 }

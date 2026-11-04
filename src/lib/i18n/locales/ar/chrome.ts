@@ -1,6 +1,9 @@
 const chrome: Record<string, string> = {
   "nav.home": "الرئيسية",
   "nav.discover": "اكتشف",
+  "nav.catalogs": "الكتالوجات",
+  "nav.kids": "شاهد",
+  "nav.hub": "كولكشن",
   "nav.movies": "أفلام",
   "nav.shows": "مسلسلات",
   "nav.anime": "أنمي",

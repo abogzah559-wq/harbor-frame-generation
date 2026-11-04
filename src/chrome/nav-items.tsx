@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Popcorn } from "lucide-react";
+import { Layers, Popcorn } from "lucide-react";
 import { AddonsIcon } from "@/components/icons/addons-icon";
 import { CatalogsIcon } from "@/components/icons/catalogs-icon";
 import { AnimeIcon } from "@/components/icons/anime-icon";
@@ -20,6 +20,7 @@ export type NavItemId =
   | "home"
   | "discover"
   | "catalogs"
+  | "hub"
   | "movies"
   | "shows"
   | "kids"
@@ -52,6 +53,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "nav.home", render: (active) => <HomeIcon active={active} />, view: "home" },
   { id: "discover", label: "nav.discover", render: (active) => <DiscoverIcon active={active} />, view: "discover", parentalKey: "discover" },
   { id: "catalogs", label: "nav.catalogs", render: (active) => <CatalogsIcon active={active} />, view: "catalogs", parentalKey: "discover" },
+  { id: "hub", label: "nav.hub", render: (active) => <Layers size={24} strokeWidth={active ? 2.4 : 2} className={active ? "" : "opacity-70"} />, view: "hub", parentalKey: "discover" },
   { id: "movies", label: "nav.movies", render: (active) => <MoviesIcon active={active} />, view: "movies", parentalKey: "movies" },
   { id: "shows", label: "nav.shows", render: (active) => <TvIcon active={active} />, view: "shows", parentalKey: "shows" },
   { id: "kids", label: "nav.kids", render: (active) => <Popcorn size={26} strokeWidth={2.2} className={active ? "" : "opacity-70"} />, view: "kids" },

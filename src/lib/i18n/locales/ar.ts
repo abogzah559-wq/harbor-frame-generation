@@ -18,6 +18,7 @@ import spotlights from "./ar/spotlights";
 import sync from "./ar/sync";
 import together from "./ar/together";
 import boost from "./ar/boost";
+import settingsExtra from "./ar/settings-extra";
 
 const ar: Record<string, string> = {
   ...chrome,
@@ -40,6 +41,7 @@ const ar: Record<string, string> = {
   ...awards,
   ...addons,
   ...boost,
+  ...settingsExtra,
 };
 
 export default ar;

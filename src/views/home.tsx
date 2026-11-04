@@ -717,7 +717,7 @@ export function Home({ active = true }: { active?: boolean }) {
   const allCustomizableRows = useMemo(() => {
     // one collection row after every two content rows, so they never pile up;
     // Arabic rows (series of every kind) stay at the very bottom
-    const content = [...personalRows, ...traktRows, ...simklRows, ...letterboxdRows, ...restRows, ...animeRows];
+    const content = mergeSameNameRows([...personalRows, ...traktRows, ...simklRows, ...letterboxdRows, ...restRows, ...animeRows]);
     const mixed: HomeRow[] = [];
     let p = 0;
     content.forEach((row, i) => {
@@ -725,7 +725,7 @@ export function Home({ active = true }: { active?: boolean }) {
       if (i % 2 === 1 && p < presetRows.length) mixed.push(presetRows[p++]);
     });
     while (p < presetRows.length) mixed.push(presetRows[p++]);
-    return [...sourceRows, ...pinnedRows, ...mixed, ...arabicRows];
+    return [...sourceRows, ...pinnedRows, ...mixed, ...mergeSameNameRows(arabicRows)];
   }, [sourceRows, pinnedRows, arabicRows, personalRows, traktRows, simklRows, letterboxdRows, restRows, animeRows, presetRows]);
   const visibleRows = useMemo(
     () => applyHomeRowCustomization(allCustomizableRows, homeRowsCustom, false),
@@ -978,6 +978,36 @@ export function Home({ active = true }: { active?: boolean }) {
       />
     </main>
   );
+}
+
+/** Rows with the same name (two "IMDB" rows from a movie and a series
+ *  catalog, say) become one row with both lists woven together. */
+function mergeSameNameRows(rows: HomeRow[]): HomeRow[] {
+  const out: HomeRow[] = [];
+  const at = new Map<string, number>();
+  for (const row of rows) {
+    const name = row.name.trim().toLowerCase();
+    const i = row.sourceRow || !name ? undefined : at.get(name);
+    if (i == null) {
+      if (!row.sourceRow && name) at.set(name, out.length);
+      out.push(row);
+      continue;
+    }
+    const a = out[i];
+    const seen = new Set<string>();
+    const metas: Meta[] = [];
+    const longest = Math.max(a.metas.length, row.metas.length);
+    for (let k = 0; k < longest; k++) {
+      for (const m of [a.metas[k], row.metas[k]]) {
+        if (m && !seen.has(m.id)) {
+          seen.add(m.id);
+          metas.push(m);
+        }
+      }
+    }
+    out[i] = { ...a, metas, hasMore: a.hasMore || row.hasMore };
+  }
+  return out;
 }
 
 function PinnedRowControls({
