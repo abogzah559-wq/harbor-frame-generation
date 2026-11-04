@@ -126,6 +126,25 @@ export async function buildCinemetaRows() {
   return { rows, hero };
 }
 
+/** One quick probe: on networks where the MyAnimeList API can't be reached,
+ *  go straight to AniList instead of waiting out a dozen timeouts. */
+let jikanProbe: Promise<boolean> | null = null;
+function jikanReachable(): Promise<boolean> {
+  jikanProbe ??= (async () => {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 5000);
+    try {
+      const r = await fetch("https://api.jikan.moe/v4/top/anime?limit=1", { signal: ac.signal });
+      return r.ok || r.status === 429;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  })();
+  return jikanProbe;
+}
+
 export async function buildAnimeHomeRows(): Promise<HomeRow[]> {
   const cleanMetas = (list: Meta[]): Meta[] =>
     list.map((m) => {
@@ -151,12 +170,15 @@ export async function buildAnimeHomeRows(): Promise<HomeRow[]> {
     return out;
   };
   try {
-    let [airing, newest, popular, upcoming] = await Promise.all([
-      fetchMany(jikanTopAiring, 3),
-      fetchMany(jikanNewReleases, 3),
-      fetchMany(jikanTopPopular, 3),
-      fetchMany(jikanUpcoming, 3),
-    ]);
+    const jikanUp = await jikanReachable();
+    let [airing, newest, popular, upcoming] = jikanUp
+      ? await Promise.all([
+          fetchMany(jikanTopAiring, 3),
+          fetchMany(jikanNewReleases, 3),
+          fetchMany(jikanTopPopular, 3),
+          fetchMany(jikanUpcoming, 3),
+        ])
+      : [[], [], [], []] as Meta[][];
     // Jikan (the MyAnimeList API) isn't reachable from every network: use AniList then
     if (airing.length + newest.length + popular.length + upcoming.length === 0) {
       const al = (p: AnilistParams) => fetchMany((page) => anilistCatalog(p, page), 2);
