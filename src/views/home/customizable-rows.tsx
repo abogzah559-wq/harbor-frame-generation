@@ -113,6 +113,10 @@ export function CustomizableRows({
   localWatched,
   stremioWatched,
   homeLanguages,
+  filmCollections,
+  animeCollection,
+  animeKeys,
+  arabicKeys,
 }: {
   rows: HomeRow[];
   editMode: boolean;
@@ -131,6 +135,11 @@ export function CustomizableRows({
   localWatched?: WatchedSet;
   stremioWatched?: Set<string>;
   homeLanguages?: string[];
+  /** collections to place between the rows that end up on screen */
+  filmCollections?: HomeRow[];
+  animeCollection?: HomeRow | null;
+  animeKeys?: Set<string>;
+  arabicKeys?: Set<string>;
 }) {
   const { openGrid } = useView();
   const t = useT();
@@ -156,9 +165,46 @@ export function CustomizableRows({
     }
     return false;
   };
+  const shownMetaCount = (row: HomeRow) => {
+    let metas = row.metas.filter((m) => typeof m.id === "string");
+    if (homeLanguages && homeLanguages.length > 0) {
+      metas = metas.filter((m) => !m.originalLanguage || homeLanguages.includes(m.originalLanguage));
+    }
+    if (hideWatched) metas = metas.filter((m) => !isWatched(m));
+    if (hideUnreleased) metas = metas.filter((m) => !isUnreleased(m));
+    return metas.length;
+  };
+  // Collections go between rows that are really on screen: one after the
+  // first film & series row, then one every few rows (never two in a row);
+  // the anime collection right before the anime rows.
+  let ordered = rows;
+  if (!editMode && (filmCollections?.length || animeCollection)) {
+    const film = filmCollections ?? [];
+    const isShown = (r: HomeRow) => !customization.hidden.includes(r.key) && shownMetaCount(r) > 0;
+    const isFilm = (r: HomeRow) => !r.sourceRow && !animeKeys?.has(r.key) && !arabicKeys?.has(r.key) && isShown(r);
+    const filmCount = rows.filter(isFilm).length;
+    const gap = film.length ? Math.max(2, Math.floor((filmCount - 1) / film.length)) : 0;
+    const out: HomeRow[] = [];
+    let seen = 0;
+    let c = 0;
+    let animePlaced = false;
+    for (const row of rows) {
+      if (animeCollection && !animePlaced && animeKeys?.has(row.key) && isShown(row)) {
+        out.push(animeCollection);
+        animePlaced = true;
+      }
+      out.push(row);
+      if (isFilm(row)) {
+        seen++;
+        if (c < film.length && (seen === 1 || (seen - 1) % gap === 0)) out.push(film[c++]);
+      }
+    }
+    if (animeCollection && !animePlaced) out.push(animeCollection);
+    ordered = out;
+  }
   return (
     <>
-      {rows.map((row, rowIndex) => {
+      {ordered.map((row, rowIndex) => {
         const hidden = customization.hidden.includes(row.key);
         if (hidden && !editMode) return null;
         let metas = row.metas.filter((m) => typeof m.id === "string");

@@ -711,36 +711,15 @@ export function Home({ active = true }: { active?: boolean }) {
     () => applyHomeRowCustomization(allCustomizableRows, homeRowsCustom, false),
     [allCustomizableRows, homeRowsCustom],
   );
-  /** Collections go between the rows you actually see: one after the first
-   *  film/series row, then one every few rows, never two in a row; the anime
-   *  collection sits right before the anime rows. */
-  const rowsWithCollections = useMemo(() => {
-    const filmCollections = ["nuvio-discover", "nuvio-genres", "nuvio-moods", "nuvio-based-on"]
-      .map(homePreset)
-      .filter((r): r is HomeRow => !!r);
-    const anime = settings.hideContent.anime ? null : homePreset("nuvio-anime");
-    const arabicKeys = new Set(arabicRows.map((r) => r.key));
-    const isFilm = (r: HomeRow) => !r.sourceRow && !animeKeys.has(r.key) && !arabicKeys.has(r.key) && r.metas.length > 0;
-    const filmCount = visibleRows.filter(isFilm).length;
-    const gap = filmCollections.length ? Math.max(2, Math.floor((filmCount - 1) / filmCollections.length)) : 0;
-    const out: HomeRow[] = [];
-    let seen = 0;
-    let c = 0;
-    let animePlaced = false;
-    for (const row of visibleRows) {
-      if (anime && !animePlaced && animeKeys.has(row.key) && row.metas.length > 0) {
-        out.push(anime);
-        animePlaced = true;
-      }
-      out.push(row);
-      if (isFilm(row)) {
-        seen++;
-        if (c < filmCollections.length && (seen === 1 || (seen - 1) % gap === 0)) out.push(filmCollections[c++]);
-      }
-    }
-    if (anime && !animePlaced) out.push(anime);
-    return out;
-  }, [visibleRows, homePreset, animeKeys, arabicRows, settings.hideContent.anime]);
+  const filmCollections = useMemo(
+    () => ["nuvio-discover", "nuvio-genres", "nuvio-moods", "nuvio-based-on"].map(homePreset).filter((r): r is HomeRow => !!r),
+    [homePreset],
+  );
+  const animeCollection = useMemo(
+    () => (settings.hideContent.anime ? null : homePreset("nuvio-anime")),
+    [homePreset, settings.hideContent.anime],
+  );
+  const arabicKeys = useMemo(() => new Set(arabicRows.map((r) => r.key)), [arabicRows]);
   const editRows = useMemo(
     () => applyHomeRowCustomization(allCustomizableRows, homeRowsCustom, true),
     [allCustomizableRows, homeRowsCustom],
@@ -939,7 +918,11 @@ export function Home({ active = true }: { active?: boolean }) {
             Array.from({ length: 7 }).map((_, i) => <RowSkeleton key={`skel-${i}`} />)
           ) : (
             <CustomizableRows
-              rows={editMode ? editRows : rowsWithCollections}
+              rows={editMode ? editRows : visibleRows}
+              filmCollections={filmCollections}
+              animeCollection={animeCollection}
+              animeKeys={animeKeys}
+              arabicKeys={arabicKeys}
               editMode={editMode}
               customization={homeRowsCustom}
               orderKeys={orderKeys}
