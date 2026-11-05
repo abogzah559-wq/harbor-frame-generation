@@ -137,7 +137,7 @@ function claim(key: string, url: string | null | undefined): boolean {
   return true;
 }
 
-function remember(key: string, url: string | null) {
+function rememberBg(key: string, url: string | null) {
   bgMem[key] = url;
   window.clearTimeout(bgFlush);
   bgFlush = window.setTimeout(() => {
@@ -169,7 +169,7 @@ export function useFolderBackdrop(
         .then((list) => {
           const free = list.find((m) => m.background && claim(key, m.background));
           const url = free?.background ?? null;
-          remember(key, url);
+          rememberBg(key, url);
           return url;
         });
       bgInflight.set(key, p);
