@@ -9,6 +9,7 @@ import type { NativeSource, SourceFolder } from "@/lib/custom-sources";
 import { resolveMdblist } from "@/lib/lists/sources/mdblist";
 import { jikanQuery } from "@/lib/providers/jikan";
 import { anilistCatalog } from "./anilist-source";
+import { cachedFolderArt } from "./logos";
 import { tmdbCollection, tmdbDiscover } from "@/lib/providers/tmdb";
 import { get } from "@/lib/providers/tmdb/tmdb-client";
 import { movieMeta, seriesMeta, type RawMovie, type RawSeries } from "@/lib/providers/tmdb/tmdb-meta-mappers";
@@ -224,7 +225,7 @@ export async function buildFolderGrid(
     title: folder.title,
     fetcher: list[0].fetcher,
     tabs: list.length > 1 ? list : undefined,
-    backdrop: folder.heroBackdropUrl ?? undefined,
+    backdrop: folder.heroBackdropUrl ?? (folder.logo ? undefined : cachedFolderArt(folder.id)),
     logo: folder.titleLogoUrl ?? undefined,
     folderLogo: folder.logo,
   };

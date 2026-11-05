@@ -184,3 +184,8 @@ export function useFolderBackdrop(
   }, [key, active]);
   return bg;
 }
+
+/** The picture a folder's tile is using (for its page header). */
+export function cachedFolderArt(folderId: string): string | undefined {
+  return bgMem[`art:${folderId}`] ?? bgMem[`bg:${folderId}`] ?? undefined;
+}

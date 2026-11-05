@@ -300,7 +300,14 @@ function FolderContentArt({ folder }: { folder: SourceFolder }) {
       if ("error" in res) return [];
       const tabs = res.tabs ?? [{ title: res.title, fetcher: res.fetcher }];
       const pick = tabs.find((x) => /رائج|مشهور|شعبي|popular|trend/i.test(x.title)) ?? tabs[0];
-      return pick.fetcher(1);
+      const list = await pick.fetcher(1);
+      if (list.some((m) => m.background)) return list;
+      // lists that only carry ids (MDBList): look the first few titles up
+      const { meta: fetchMeta, narrowMediaType } = await import("@/lib/cinemeta");
+      const full = await Promise.all(
+        list.slice(0, 6).map((m) => fetchMeta(narrowMediaType(m.type), m.id).catch(() => null)),
+      );
+      return full.filter((m): m is NonNullable<typeof m> => !!m);
     },
     near,
   );
