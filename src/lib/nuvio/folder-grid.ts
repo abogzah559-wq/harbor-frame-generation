@@ -196,6 +196,17 @@ export async function buildFolderGrid(
       });
     }
   }
+  // one AniList catalog alone is a wall of posters: show it as Harbor rows
+  // (trending, most popular, top rated, newest) of the same selection
+  const onlySrc = folder.sources?.length === 1 ? folder.sources[0] : null;
+  if (tabs.length === 1 && onlySrc?.provider === "anilist" && onlySrc.anilist) {
+    const base = onlySrc.anilist;
+    const upcoming = base.status === "NOT_YET_RELEASED";
+    const variants: [string, string][] = upcoming
+      ? [["الأكثر انتظاراً", "POPULARITY_DESC"], ["رائج الآن", "TRENDING_DESC"], ["الأقرب موعداً", "START_DATE"]]
+      : [["رائج الآن", "TRENDING_DESC"], ["الأشهر", "POPULARITY_DESC"], ["الأعلى تقييماً", "SCORE_DESC"], ["الأحدث", "START_DATE_DESC"]];
+    tabs.splice(0, 1, ...variants.map(([title, sort]) => ({ title, fetcher: (page: number) => anilistCatalog({ ...base, sort }, page) })));
+  }
   if (!tabs.length) {
     if (missingAddon) return { error: "addon", addonId: missingAddon };
     if (needMdblist) return { error: "mdblist-key" };

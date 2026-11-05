@@ -30,9 +30,9 @@ const MEDIA_QUERY = `query ($page: Int, $perPage: Int, $sort: [MediaSort], $stat
   }
 }`;
 
-const STUDIO_QUERY = `query ($id: Int, $page: Int, $perPage: Int) {
+const STUDIO_QUERY = `query ($id: Int, $page: Int, $perPage: Int, $sort: [MediaSort]) {
   Studio(id: $id) {
-    media(page: $page, perPage: $perPage, sort: POPULARITY_DESC, isMain: true) { nodes { ${FIELDS} } }
+    media(page: $page, perPage: $perPage, sort: $sort, isMain: true) { nodes { ${FIELDS} } }
   }
 }`;
 
@@ -54,7 +54,7 @@ export async function anilistCatalog(p: AnilistParams, page: number): Promise<Me
   if (p.studio) {
     const data = await anilistRequest<{ Studio: { media: { nodes: AnilistMedia[] } } | null }>(
       STUDIO_QUERY,
-      { id: p.studio, page, perPage: PER_PAGE },
+      { id: p.studio, page, perPage: PER_PAGE, sort: [p.sort ?? "POPULARITY_DESC"] },
       undefined,
       true,
     );

@@ -114,9 +114,9 @@ export function useFolderLogo(tmdbKey: string | undefined, l: FolderLogo | undef
   return entry;
 }
 
-/* ---- backdrop of the network's / studio's best-known title ---- */
+/* ---- picture of the folder's best-known title (never the same picture twice) ---- */
 
-const BG_KEY = "harbor.nuvio-logo-bg.v1";
+const BG_KEY = "harbor.nuvio-logo-bg.v2";
 const bgMem: Record<string, string | null> = (() => {
   try {
     return JSON.parse(localStorage.getItem(BG_KEY) ?? "{}");
@@ -124,34 +124,52 @@ const bgMem: Record<string, string | null> = (() => {
     return {};
   }
 })();
+/** picture url → the tile that uses it: every tile gets its own picture */
+const claimedBy = new Map<string, string>();
 let bgFlush = 0;
 const bgInflight = new Map<string, Promise<string | null>>();
 
-/** Picks the first title with a backdrop from the folder's "popular" catalog. */
+function claim(key: string, url: string | null | undefined): boolean {
+  if (!url) return false;
+  const owner = claimedBy.get(url);
+  if (owner && owner !== key) return false;
+  claimedBy.set(url, key);
+  return true;
+}
+
+function remember(key: string, url: string | null) {
+  bgMem[key] = url;
+  window.clearTimeout(bgFlush);
+  bgFlush = window.setTimeout(() => {
+    try {
+      localStorage.setItem(BG_KEY, JSON.stringify(bgMem));
+    } catch {
+      /* ignore */
+    }
+  }, 500);
+}
+
+/** Picks the first title with a picture that no other tile is using. */
 export function useFolderBackdrop(
   key: string,
   load: () => Promise<{ background?: string }[]>,
   active: boolean,
 ): string | null {
-  const [bg, setBg] = useState<string | null>(() => bgMem[key] ?? null);
+  const [bg, setBg] = useState<string | null>(() => {
+    const cached = bgMem[key];
+    return cached && claim(key, cached) ? cached : null;
+  });
   useEffect(() => {
-    if (!active || key in bgMem) return;
+    if (!active || bg) return;
     let cancelled = false;
     let p = bgInflight.get(key);
     if (!p) {
       p = load()
-        .then((list) => list.find((m) => m.background)?.background ?? null)
-        .catch(() => null)
-        .then((url) => {
-          bgMem[key] = url;
-          window.clearTimeout(bgFlush);
-          bgFlush = window.setTimeout(() => {
-            try {
-              localStorage.setItem(BG_KEY, JSON.stringify(bgMem));
-            } catch {
-              /* ignore */
-            }
-          }, 500);
+        .catch(() => [] as { background?: string }[])
+        .then((list) => {
+          const free = list.find((m) => m.background && claim(key, m.background));
+          const url = free?.background ?? null;
+          remember(key, url);
           return url;
         });
       bgInflight.set(key, p);

@@ -234,13 +234,13 @@ function GridPane({ grid, scrollKey, tabBar }: { grid: GridSpec; scrollKey?: str
 
   const body = (
     <>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-4 gap-y-8">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(185px,1fr))] gap-x-6 gap-y-10">
         {metas.map((m, i) => (
           <PickCard key={`${m.id}-${i}`} meta={m} kids={!!hero} />
         ))}
       </div>
       {!done && metas.length === 0 && (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-4 gap-y-8">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(185px,1fr))] gap-x-6 gap-y-10">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="aspect-[2/3] animate-pulse rounded-xl bg-elevated/60" />
           ))}
@@ -297,10 +297,10 @@ function GridPane({ grid, scrollKey, tabBar }: { grid: GridSpec; scrollKey?: str
           </section>
           <div className="flex w-full flex-col gap-8 px-12 pb-24 pt-6">{body}</div>
         </>
-      ) : grid.backdrop ? (
+      ) : grid.backdrop || bgArt ? (
         <>
           <section className="relative h-[46vh] min-h-[340px] w-full overflow-hidden">
-            <img src={grid.backdrop} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
+            <img src={grid.backdrop ?? bgArt} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-canvas via-canvas/40 to-transparent" />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/50 via-black/10 to-transparent rtl:bg-gradient-to-l" />
             {!layoutHasGlobalBack() && (
