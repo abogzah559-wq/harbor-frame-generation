@@ -8,7 +8,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 /** This build's release number: boost-<HARBOR_BUILD>. Bump it with every release. */
-export const HARBOR_BUILD = 6;
+export const HARBOR_BUILD = 7;
 export const RELEASES_URL = "https://github.com/abogzah559-wq/harbor-frame-generation/releases";
 const API = "https://api.github.com/repos/abogzah559-wq/harbor-frame-generation/releases/latest";
 const LAST_BUILD_KEY = "harbor.selfupdate.lastBuild";
