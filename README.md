@@ -5,101 +5,109 @@
 
 # Harbor Frame Generation
 
-**AI frame generation and GPU upscaling built into Harbor's player, for Windows.**
+**Smooth playback for films, series and anime: RIFE frame generation and GPU upscaling inside Harbor's player, for Windows.**
 
-[Download](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest)
+[Download the latest release](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest) · [Release notes](docs/RELEASE-NOTES.md) · [بالعربي](#بالعربي)
 
 </div>
 
 ---
 
-## What it is
+## Overview
 
-Harbor Frame Generation is a build of [Harbor](docs/HARBOR-UPSTREAM.md) (a desktop client for the Stremio addon protocol) that adds **Boost** to its native mpv player:
+This is a Windows build of [Harbor](docs/HARBOR-UPSTREAM.md), a desktop client for Stremio addons, with **Boost** added to its mpv player. Boost turns a 24 fps film into 48, 60 or more frames per second while it plays, sharpens the picture, and keeps your graphics card inside a limit you choose. Everything runs inside Harbor: no second program, no capture, no overlay.
 
-| Feature | What you get |
+| | |
 |---|---|
-| **AI frame generation (RIFE)** | New in-between frames made by a neural network. A 24 fps film plays at 48, 60 or more fps. Runs inside Harbor's own player, no external program. |
-| **Smooth mode** | Light frame blending to your screen's refresh rate. Works on any GPU. |
-| **Upscaling** | FSR, NIS or CAS shaders with adjustable sharpness. |
-| **GPU limit you can trust** | You set a limit (default 80 %). Boost reads the real GPU use, the same number Task Manager shows, and keeps the GPU working right up to that limit: no lag, and no unused power. |
-| **Head start** *(new)* | RIFE works up to 2 seconds ahead of the picture on screen, the way a video buffers before you reach it. Heavy scenes and short GPU spikes are absorbed by the frames already made, so they never show as a stutter. |
-| **Cleaner layout** *(new)* | An icon-only side rail that opens over the page from a menu button, an edge-to-edge home banner, and a Harbor name, search bar and window buttons that stay readable over any picture. Harbor opens full screen. |
-| **Clearer home banner** | The featured film or series at the top of the home page is taller and brighter, with lighter shading over the picture, and a smooth bar under it fills up until the next title comes. |
-
-## What Harbor does
-
-- Browse films, series and anime from your Stremio addons, with catalogs, search, a watch list, continue-watching and calendars.
-- Play streams in a native mpv player with subtitles, audio tracks, casting and downloads.
-- Boost (below) adds frame generation, upscaling and a GPU budget to that player.
+| **Frame generation** | RIFE creates the frames in between the real ones, on your GPU (Vulkan, any vendor). |
+| **Smooth mode** | Light frame blending to your refresh rate, for weaker GPUs. |
+| **Upscaling** | FSR, NIS or CAS with adjustable sharpness. |
+| **GPU limit** | You set a limit (80 % by default). Boost reads the real GPU use, the number Task Manager shows, and works up to it. |
+| **Head start** | Frames are made up to 2 s ahead of the picture, so a heavy scene is covered by frames already finished. |
+| **Scene cuts** | Real cuts switch cleanly instead of morphing. Fast camera moves are still interpolated. |
+| **Updates** | New releases download in the background and install when you close Harbor. |
 
 ## Install
 
 1. Download `Harbor_…_x64-setup.exe` from the [latest release](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest).
-2. The installer isn't code-signed, so Windows SmartScreen may warn: click **More info → Run anyway**.
-3. Play a film or an episode and click **✦** on the player bar. The gear next to it opens the settings.
+2. The installer is not code-signed. If SmartScreen warns, choose **More info → Run anyway**.
+3. Play something and press **✦** on the player bar. The gear next to it opens the Boost settings.
 
-The first time you switch frame generation on, about 60 MB of runtime (Python, VapourSynth, the RIFE engine and one model) is downloaded once.
+The first time frame generation is switched on, about 60 MB (Python, VapourSynth, the RIFE engine and one model) is downloaded once.
 
 ## Recommended settings
 
-| Setting | Recommended | Why |
+| Setting | Value | Notes |
 |---|---|---|
-| Model | **RIFE 4.6** | Fastest, good quality. Heavier models work too; Boost lowers the frame rate or resolution to stay inside your limit. |
-| Output | **Auto** | Picks the smoothest frame rate that fits your GPU and divides your refresh rate evenly (240 Hz → 48 / 60 / 80 fps). |
-| Processing resolution | **Auto** | Up to 1080p. 4K and 1440p videos are interpolated at 1080p and scaled back up, because RIFE is 3× slower at 1440p and 11× slower at 4K. |
-| GPU limit | **80 %** | Room for the decoder, the renderer and anything else running. Raise it if the PC does nothing else while you watch. |
-| Head start | **1 s** | Enough to smooth out heavy scenes. 2 s absorbs longer spikes but uses more memory and takes a moment longer to fill after a seek. Off keeps only the few frames mpv needs next. |
+| Model | **RIFE 4.6** | Fastest with good quality. Heavier models work; Boost lowers resolution or frame rate to stay in your limit. |
+| Output | **Auto** | The smoothest rate that fits your GPU and divides your refresh rate evenly (240 Hz → 48 / 60 / 80 fps). |
+| Processing resolution | **Auto** | Up to 1080p. RIFE is about 3× slower at 1440p and 11× slower at 4K, so larger video is interpolated at 1080p and scaled back up. |
+| GPU limit | **80 %** | Leaves room for decoding and rendering. |
+| Head start | **1 s** | 2 s covers longer spikes but uses more memory and refills more slowly after a seek. |
+| Scene detection | **On** | |
 
-The settings panel shows what Boost is doing right now, for example `2160p → 1080p · 60 fps · GPU 78% / 80%`: source and processing resolution, output frame rate, and **real** GPU use against your limit.
+The settings panel shows what Boost is doing at that moment, for example `2160p → 1080p · 60 fps · GPU 78% / 80%`.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-    A[Stream] --> B[Decoder<br/>hardware, copy-back]
+    A[Stream] --> B[Decoder]
     B --> C[VapourSynth<br/>scale to ≤1080p]
-    C --> D[RIFE ncnn-Vulkan<br/>new frames]
-    D --> E[mpv renderer<br/>upscale + FSR/NIS/CAS]
-    E --> F[Screen<br/>display-resample]
-    G[GPU monitor<br/>real use] -.-> H[Planner]
-    I[Lag monitor<br/>dropped frames] -.-> H
+    C --> S[Scene cuts]
+    S --> D[RIFE ncnn-Vulkan]
+    D --> E[mpv renderer<br/>FSR / NIS / CAS]
+    E --> F[Screen]
+    G[GPU use] -.-> H[Planner]
+    I[Dropped frames] -.-> H
     H -.->|resolution + fps| C
 ```
 
-1. **Calibration.** Once per GPU and model, Boost measures how many frames per second RIFE makes at 720p and 1080p (a 3-4 second pause the first time).
-2. **Planning.** For every video it picks the processing resolution and an output frame rate that is a whole divisor of your refresh rate, so every frame stays on screen for the same time (no judder).
-3. **Paced work and head start.** mpv asks VapourSynth for frames ahead of the one on screen, with a deep buffer, so the GPU works at an even pace instead of 100 % bursts that starve the renderer. With **Head start** on, mpv keeps decoding and RIFE keeps making frames up to 1 or 2 seconds ahead (at most 96 finished frames waiting, mpv's limit is 99; the decoded-frame buffer is sized to just what that window needs, so memory stays low), so a slow moment is covered by frames that are already finished.
-4. **Real GPU feedback.** While you watch, Boost reads the GPU's real use every few seconds (nvidia-smi on NVIDIA cards, Windows GPU engine counters on others). Well under your limit → it raises the frame rate or resolution. Over the limit → it lowers them.
-5. **Lag guard.** If frames still drop, the load is lowered and that plan is blocked for 10 minutes so Boost doesn't climb straight back to it.
+1. **Calibration.** Once per GPU and model, Boost measures RIFE's speed at 720p and 1080p (a short pause the first time).
+2. **Planning.** For each video it picks a processing resolution and an output rate that divides the refresh rate, so every frame stays on screen for the same time.
+3. **Scene cuts.** A tiny copy of each frame is compared with the next. A cut is a change that stands out sharply from the frames around it, or a jump in the brightness histogram. A fast pan changes a lot too, but steadily and without moving the histogram, so it is still interpolated.
+4. **Paced work.** mpv asks for frames ahead of the one on screen with a deep buffer, so the GPU works at an even pace instead of in bursts.
+5. **GPU feedback.** Every few seconds Boost reads the real GPU use (nvidia-smi on NVIDIA, Windows GPU counters on others). Well under the limit, it raises the plan; over it, it lowers the plan and keeps that plan off for 10 minutes so it doesn't swing back and forth.
+6. **Lag guard.** If frames keep dropping well after a change (not right after a seek or a reload), the plan is lowered.
 
 ## Troubleshooting
 
-| Problem | Fix |
+| Problem | What to do |
 |---|---|
-| Picture hitches or the quality drops while the film is buffering | Fixed in boost-4: frames lost to a slow network are no longer treated as a slow GPU. |
-| Quality stays low on a strong GPU | Open the settings and press **Measure now**. Boost-4 also raises the plan by itself when the GPU has room. |
-| `lua51.dll was not found` | Fixed in boost-3. On an older build, unzip `mpv-fix-x64.zip` from the release into `%LOCALAPPDATA%\Harbor`. |
-| Frame generation runs on the wrong GPU | Pick your graphics card under **GPU** in the advanced settings. |
+| Quality stays low on a strong GPU | Boost settings → **Measure now**. |
+| Frame generation runs on the wrong GPU | Pick your card under **Graphics card** in the Boost settings. |
+| `lua51.dll was not found` (old builds) | Unzip `mpv-fix-x64.zip` from the release into `%LOCALAPPDATA%\Harbor`. |
+| Something looks wrong | Settings → Report a bug → **Export player log**, then attach the file to an issue. |
 
 ## Build from source
 
-Needs Node 22, pnpm, the Rust stable toolchain (MSVC) and the Tauri prerequisites.
+Requires Node 22, pnpm, Rust stable (MSVC) and the [Tauri prerequisites](https://tauri.app/start/prerequisites/).
 
 ```bash
 pnpm install
 pnpm run setup:libmpv
+pnpm run setup:fonts
 pnpm tauri build
 ```
 
-Windows installers are built by the `windows-build` workflow. Pushing a tag such as `boost-4` publishes a release with the notes in [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md).
+Release installers are built by the `windows-build` workflow. Running it with a `release_tag` such as `boost-8` publishes a release with [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) as its notes. The `scene-cut-test` workflow runs the scene-cut detector in the same VapourSynth runtime Boost installs, on real video.
 
 | Part | Where |
 |---|---|
 | Planner, GPU feedback, lag guard | `src/lib/boost.ts` |
-| Settings panel | `src/components/player/boost/` |
-| Home banner | `src/components/hero.tsx`, `src/components/hero-carousel.tsx` |
+| Boost settings panel | `src/components/player/boost/` |
 | Runtime install, VapourSynth script, calibration, GPU reading | `src-tauri/src/boost.rs` |
+| Self-update | `src/lib/selfupdate.ts` |
+| Rust core shared with Harbor | `harbor-core/` |
+
+## بالعربي
+
+نسخة ويندوز من هاربر فيها **Boost** داخل المشغّل:
+- **توليد إطارات بـRIFE:** فلم 24 إطار يشتغل 48 أو 60 أو أكثر.
+- **تحسين الصورة:** FSR أو NIS أو CAS.
+- **حد لاستهلاك كرت الشاشة:** تختاره أنت، والبرنامج يشتغل لين هالحد بالضبط.
+
+نزّل ملف التثبيت من [آخر إصدار](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest)، شغّل أي حلقة، واضغط **✦** في شريط المشغّل. التحديثات بعدها تنزل لحالها.
 
 ## Credits and license
 

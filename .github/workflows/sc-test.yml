@@ -3,11 +3,8 @@ name: scene-cut-test
 on:
   workflow_dispatch:
   push:
-    branches: [fix-motion]
+    branches: [frame-gen]
     paths: ["src-tauri/src/boost.rs", ".github/scripts/sc_*.py", ".github/workflows/sc-test.yml"]
-
-permissions:
-  contents: write
 
 jobs:
   test:
@@ -54,12 +51,6 @@ jobs:
               ffmpeg -loglevel error -i $v.mp4 -t 120 -vf "select='between(n\,$((f-1))\,$((f+2)))',scale=200:-2,tile=4x1" -frames:v 1 -y res/$v/s/$(printf %05d $f).jpg
             done
           done
-      - name: Push results to the sc-results branch
-        shell: bash
-        run: |
-          git config user.name ci; git config user.email ci@users.noreply.github.com
-          mkdir -p /tmp/out && cp -r res/*.txt /tmp/out/ && for v in v1 v2; do [ -d res/$v/s ] && mkdir -p /tmp/out/$v && cp res/$v/s/*.jpg /tmp/out/$v/ || true; done
-          git checkout --orphan sc-results && git rm -rqf . && cp -r /tmp/out/* . && git add -A && git commit -qm "scene-cut results ${{ github.sha }}" && git push -f origin sc-results
       - uses: actions/upload-artifact@v4
         with:
           name: sc-results
