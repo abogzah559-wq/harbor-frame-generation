@@ -21,9 +21,9 @@ data = np.fromfile(raw, dtype=np.float32).reshape(-1, 36, 64)[:n]
 n = len(data)
 blank = core.std.BlankClip(width=64, height=36, format=vs.GRAYS, length=n, fpsnum=24, fpsden=1)
 
-def fill(k, f):
+def fill(n, f):
     o = f.copy()
-    np.asarray(o[0])[:] = data[k]
+    np.asarray(o[0])[:] = data[n]
     return o
 
 luma = core.std.ModifyFrame(blank, blank, fill)
