@@ -7,6 +7,46 @@
   font-style: normal;
   font-display: swap;
 }
+/* Thmanyah (ثمانية): used from the copy installed on Windows, the files are not shipped (license). */
+@font-face {
+  font-family: "Thmanyah";
+  src: local("thmanyah serif display Light"), local("thmanyahserifdisplay-Light");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Thmanyah";
+  src: local("thmanyah serif display Regular"), local("thmanyahserifdisplay-Regular");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Thmanyah";
+  src: local("thmanyah serif display Medium"), local("thmanyahserifdisplay-Medium");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Thmanyah";
+  src: local("thmanyah serif display Bold"), local("thmanyahserifdisplay-Bold");
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Thmanyah";
+  src: local("thmanyah serif display Black"), local("thmanyahserifdisplay-Black");
+  font-weight: 800 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 @theme {
   --color-canvas: oklch(0.18 0.004 260);

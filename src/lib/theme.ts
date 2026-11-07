@@ -34,6 +34,7 @@ export type FontPairId =
   | "cabinet-switzer"
   | "plex"
   | "plus-jakarta"
+  | "thmanyah"
   | "system";
 
 export type ThemeBackground = {
@@ -1579,6 +1580,13 @@ export const FONT_PAIRS: Record<FontPairId, FontPair> = {
     blurb: "Stremio's typeface. Geometric humanist sans.",
     display: '"Plus Jakarta Sans", "Inter", system-ui, sans-serif',
     sans: '"Plus Jakarta Sans", "Inter", system-ui, sans-serif',
+  },
+  thmanyah: {
+    id: "thmanyah",
+    name: "Thmanyah (ثمانية)",
+    blurb: "Arabic serif from Thmanyah. Needs the free font installed on Windows.",
+    display: '"Thmanyah", "Sentient", "Georgia", serif',
+    sans: '"Thmanyah", "Switzer", "Inter", system-ui, sans-serif',
   },
   system: {
     id: "system",
