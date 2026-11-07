@@ -7,7 +7,7 @@
 
 **Smooth playback for films, series and anime: RIFE frame generation and GPU upscaling inside Harbor's player, for Windows.**
 
-[Download the latest release](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest) · [Release notes](docs/RELEASE-NOTES.md) · [بالعربي](#بالعربي)
+[Download the latest release](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest) · [Release notes](docs/RELEASE-NOTES.md)
 
 </div>
 
@@ -99,15 +99,6 @@ Release installers are built by the `windows-build` workflow. Running it with a 
 | Runtime install, VapourSynth script, calibration, GPU reading | `src-tauri/src/boost.rs` |
 | Self-update | `src/lib/selfupdate.ts` |
 | Rust core shared with Harbor | `harbor-core/` |
-
-## بالعربي
-
-نسخة ويندوز من هاربر فيها **Boost** داخل المشغّل:
-- **توليد إطارات بـRIFE:** فلم 24 إطار يشتغل 48 أو 60 أو أكثر.
-- **تحسين الصورة:** FSR أو NIS أو CAS.
-- **حد لاستهلاك كرت الشاشة:** تختاره أنت، والبرنامج يشتغل لين هالحد بالضبط.
-
-نزّل ملف التثبيت من [آخر إصدار](https://github.com/abogzah559-wq/harbor-frame-generation/releases/latest)، شغّل أي حلقة، واضغط **✦** في شريط المشغّل. التحديثات بعدها تنزل لحالها.
 
 ## Credits and license
 
