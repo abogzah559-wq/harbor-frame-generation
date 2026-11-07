@@ -458,16 +458,41 @@ else:
     use_sc = False
     if __SC__:
         # Scene cuts from a tiny luma proxy (VapourSynth R79 has no misc.SCDetect).
+        # A plain difference threshold also fires on fast pans, and every false
+        # cut repeats a frame instead of interpolating it (judder in exactly the
+        # fast scenes). A cut is either a lone spike in the difference (much
+        # larger than the frame before and after it) or a large change in the
+        # brightness histogram, which camera motion barely moves.
         try:
             luma = core.resize.Bilinear(core.std.ShufflePlanes(clip, 0, vs.GRAY), 64, 36, format=vs.GRAYS)
-            st = core.std.PlaneStats(luma, luma[1:] + luma[-1])
+            nxt = luma[1:] + luma[-1]
+            st = core.std.PlaneStats(luma, nxt)
+            prv = st[0] + st[:-1]
+            fol = st[1:] + st[-1]
+
+            def _hist(fr):
+                h = [0] * 16
+                for row in memoryview(fr[0]).tolist():
+                    for v in row:
+                        h[min(15, max(0, int(v * 16)))] += 1
+                return h
 
             def _mark(n, f):
-                o = f.copy()
-                o.props["_SceneChangeNext"] = 1 if f.props["PlaneStatsDiff"] > 0.1 else 0
+                d = f[0].props["PlaneStatsDiff"]
+                nb = max(f[1].props["PlaneStatsDiff"] if n > 0 else 0.0,
+                         f[2].props["PlaneStatsDiff"])
+                cut = d > 0.1 and d > 2.5 * nb
+                if not cut and d > 0.05:
+                    try:
+                        a, b = _hist(f[3]), _hist(f[4])
+                        cut = sum(abs(x - y) for x, y in zip(a, b)) > 0.6 * 64 * 36
+                    except Exception:
+                        cut = d > 0.1
+                o = f[0].copy()
+                o.props["_SceneChangeNext"] = 1 if cut else 0
                 return o
 
-            st = core.std.ModifyFrame(st, st, _mark)
+            st = core.std.ModifyFrame(st, [st, prv, fol, luma, nxt], _mark)
             rgb = core.std.CopyFrameProps(rgb, st, props=["_SceneChangeNext"])
             use_sc = True
         except Exception:

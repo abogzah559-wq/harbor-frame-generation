@@ -477,9 +477,13 @@ let appliedSmooth = false;
 let appliedSync = false;
 let fgFailed = false;
 let vfAppliedAt = 0;
+/** Grows the filter's frame buffer after mpv reported it too small
+ *  ("only have frames starting from"), instead of giving up on RIFE. */
+let bufBoost = 1;
+let bufRetryAt = 0;
 let planSig = "";
 let lastPlan: (BoostPlan & { maxHeight: number }) | null = null;
-let lag: { at: number; drops: number; bad: number } | null = null;
+let lag: { at: number; drops: number; pos: number; bad: number } | null = null;
 let overNotice = false;
 
 /** Plans that lagged recently, per model/GPU: the GPU feedback loop must not
@@ -606,7 +610,7 @@ async function wantedVf(p: BoostProfile): Promise<string | null> {
  *  frames, so with a long window `buffered-frames` has to shrink: 10 × 48
  *  would hold ~480 source frames (gigabytes at 1440p) and stall the PC. */
 function filterSizes(p: BoostProfile, pl: BoostPlan | null): { conc: number; buffered: number } {
-  const base = { conc: Math.min(6, p.gpuThreads + 1), buffered: 10 };
+  const base = { conc: Math.min(6, p.gpuThreads + 1), buffered: 10 * bufBoost };
   const sec = Math.max(0, Math.min(2, p.lookahead ?? 0));
   if (!sec || !pl) return base;
   // with a target frame rate the window never holds more frames than that
@@ -614,7 +618,9 @@ function filterSizes(p: BoostProfile, pl: BoostPlan | null): { conc: number; buf
   const cap = p.fgMode === "target" ? Math.max(base.conc, Math.round(Math.min(p.target, pl.outFps))) : 96;
   const conc = Math.max(base.conc, Math.min(cap, 96, Math.ceil(pl.outFps * sec)));
   // source frames the window reaches into, plus RIFE's neighbours and slack
-  const input = Math.ceil(pl.srcFps * sec) + 12;
+  // (scene detection reads two frames past RIFE's pair; requests out of
+  // order across GPU threads need room behind the window too)
+  const input = (Math.ceil(pl.srcFps * sec) + 20) * bufBoost;
   return { conc, buffered: Math.max(1, Math.ceil(input / conc)) };
 }
 
@@ -707,22 +713,34 @@ async function checkLag() {
     lag = null;
     return;
   }
-  if (Date.now() - vfAppliedAt < 8000 || (await stalled())) {
+  // Same settle time as the GPU feedback: right after a filter (re)load the
+  // head start is still refilling and drops say nothing about the plan.
+  if (Date.now() - vfAppliedAt < GPU_SETTLE_MS || (await stalled())) {
     lag = null;
     return;
   }
   const drops = await numProp("frame-drop-count");
   if (!Number.isFinite(drops)) return;
   const avsync = Math.abs(await numProp("avsync"));
+  const pos = await numProp("time-pos");
   const now = Date.now();
   if (!lag) {
-    lag = { at: now, drops, bad: 0 };
+    lag = { at: now, drops, pos, bad: 0 };
     return;
   }
   const dt = Math.max(0.5, (now - lag.at) / 1000);
+  // A seek between two samples (keyboard, chapter skip): its drops and the
+  // refill after it are not the GPU's fault. Start counting again.
+  if (Number.isFinite(pos) && Number.isFinite(lag.pos) && Math.abs(pos - lag.pos - dt) > 1.5) {
+    lag = { at: now, drops, pos, bad: 0 };
+    return;
+  }
   const rate = (drops - lag.drops) / dt;
-  const lagging = rate > 1.5 || (Number.isFinite(avsync) && avsync > 0.25);
-  lag = { at: now, drops, bad: lagging ? lag.bad + 1 : 0 };
+  // In the logs a third of the downgrades came from 1.5–4 drops/s with
+  // perfect A/V sync, and lowering the plan did not change that rate: those
+  // drops are not GPU load. Only a clear overload counts.
+  const lagging = rate > 4 || (Number.isFinite(avsync) && avsync > 0.25);
+  lag = { at: now, drops, pos, bad: lagging ? lag.bad + 1 : 0 };
   if (lag.bad < 3) return;
   lag = null;
 
@@ -809,6 +827,9 @@ async function checkGpu() {
     if (workOf(better.outFps, better.height) <= workOf(pl.outFps, pl.height)) return;
     lastRaiseAt = Date.now();
   }
+  // A plan that went over the limit must not come back a minute later via
+  // "under" on the lower plan: that see-saw reloaded the filter every ~35 s.
+  if (over) lagCeil.set(key, { work: workOf(pl.outFps, pl.height), until: Date.now() + LAG_HOLD_MS });
   speedScale[key] = next;
   saveScales();
   console.warn("[boost] gpu feedback", { avg: Math.round(avg), peak: Math.round(peak), limit: p.maxGpu, scale: next, plan: pl });
@@ -922,11 +943,25 @@ export function boostAttach(): () => void {
   gpuSamples = [];
   lastRaiseAt = 0;
   lastRefresh = 0;
+  bufBoost = 1;
+  bufRetryAt = 0;
   setState({ gpuNow: null });
   const onVsError = (e: Event) => {
     if (!state.on || state.config.profile.frameGeneration !== "RIFE" || fgFailed) return;
-    fgFailed = true;
     const detail = String((e as CustomEvent).detail ?? "").trim();
+    // One failure logs several lines; the retry below already covers them.
+    if (Date.now() - bufRetryAt < 3000) return;
+    if (detail.includes("only have frames starting from") && bufBoost < 2) {
+      // mpv dropped a frame RIFE still needed: the buffer was too small for
+      // this plan. Reload with a bigger one rather than switching RIFE off.
+      bufBoost *= 2;
+      bufRetryAt = Date.now();
+      appliedVf = null;
+      console.warn("[boost] buffer retry", { bufBoost });
+      void runSync();
+      return;
+    }
+    fgFailed = true;
     setState({ error: `${t("Frame generation failed to start")}${detail ? `: ${detail}` : ""}` });
     void guardPosition().then(() => mpvCmd(["vf", "remove", VF_LABEL]).catch(() => {}));
     void hwdecRestore();

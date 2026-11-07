@@ -1,0 +1,53 @@
+name: scene-cut-test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix-motion]
+    paths: ["src-tauri/src/boost.rs", ".github/scripts/sc_test.py", ".github/workflows/sc-test.yml"]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Runtime (same steps as Harbor's installer)
+        shell: bash
+        run: |
+          curl -sSL https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip -o py.zip
+          curl -sSL https://github.com/vapoursynth/vapoursynth/releases/download/R79/VapourSynth64-Portable-R79.zip -o vs.zip
+          mkdir rt stg && unzip -q py.zip -d rt && unzip -q vs.zip -d stg
+          printf 'Lib\\site-packages\r\n' >> rt/python312._pth
+          cat rt/python312._pth
+          mkdir -p rt/Lib/site-packages
+          unzip -q -o stg/wheel/*.whl -d rt/Lib/site-packages
+          python -m pip install numpy --target rt/Lib/site-packages -q
+          ./rt/python.exe -c "import vapoursynth as vs, numpy; print(vs.core.version())"
+      - name: Videos
+        shell: bash
+        run: |
+          curl -sSL https://download.blender.org/durian/trailer/sintel_trailer-1080p.mp4 -o v1.mp4
+          curl -sSL "https://download.blender.org/demo/movies/BBB/bbb_sunflower_1080p_30fps_normal.mp4" -r 0-60000000 -o v2.mp4 || true
+          choco install ffmpeg -y --no-progress > /dev/null
+          ls -la *.mp4
+      - name: Run detector
+        shell: bash
+        run: |
+          mkdir -p res
+          for v in v1 v2; do
+            [ -s $v.mp4 ] || continue
+            ffmpeg -loglevel error -i $v.mp4 -t 120 -vf "scale=64:36:flags=bilinear,format=grayf32le" -f rawvideo $v.gray || continue
+            nf=$(( $(stat -c %s $v.gray) / (64*36*4) ))
+            ffmpeg -i $v.mp4 -t 120 -vf "scdet=t=10,metadata=print:file=res/$v.scdet.txt" -f null - 2> /dev/null || true
+            ./rt/python.exe .github/scripts/sc_test.py src-tauri/src/boost.rs $v.gray $nf res/$v
+            # thumbnails of every frame for checking flagged spots by eye
+            ffmpeg -loglevel error -i $v.mp4 -t 120 -vf "scale=240:-2" -q:v 6 res/$v/f%05d.jpg
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sc-results
+          path: res
+          retention-days: 3
