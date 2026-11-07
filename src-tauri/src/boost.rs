@@ -481,7 +481,7 @@ else:
                 d = f[0].props["PlaneStatsDiff"]
                 nb = max(f[1].props["PlaneStatsDiff"] if n > 0 else 0.0,
                          f[2].props["PlaneStatsDiff"])
-                cut = d > 0.1 and d > 2.5 * nb
+                cut = d > 0.1 and d > 2.0 * nb
                 if not cut and d > 0.05:
                     try:
                         a, b = _hist(f[3]), _hist(f[4])
