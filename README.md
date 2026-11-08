@@ -25,7 +25,7 @@ This is a Windows build of [Harbor](docs/HARBOR-UPSTREAM.md), a desktop client f
 | **GPU limit** | You set a limit (80 % by default). Boost reads the real GPU use, the number Task Manager shows, and works up to it. |
 | **Head start** | Frames are made up to 2 s ahead of the picture, so a heavy scene is covered by frames already finished. |
 | **Scene cuts** | Real cuts switch cleanly instead of morphing. Fast camera moves are still interpolated. |
-| **Updates** | New releases download in the background and install when you close Harbor. |
+| **Updates** | Harbor checks for a new release every 30 minutes, downloads it in the background and installs it when you close Harbor, or right away with **Restart now** in Settings → Advanced. |
 
 ## Install
 
@@ -102,7 +102,7 @@ Release installers are built by the `windows-build` workflow. Running it with a 
 
 ## Credits and license
 
-Built on [Harbor](docs/HARBOR-UPSTREAM.md) (MIT). Frame generation uses [RIFE](https://github.com/hzwer/Practical-RIFE) through [VapourSynth-RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan) and [VapourSynth](https://www.vapoursynth.com/). Upscaling shaders by [agyild](https://gist.github.com/agyild). Released under the [MIT License](LICENSE).
+Built on [Harbor](docs/HARBOR-UPSTREAM.md) (MIT). All credit for Harbor itself goes to its original team, who are no longer working on it. This edition is made and maintained by **3zT**. Frame generation uses [RIFE](https://github.com/hzwer/Practical-RIFE) through [VapourSynth-RIFE-ncnn-Vulkan](https://github.com/styler00dollar/VapourSynth-RIFE-ncnn-Vulkan) and [VapourSynth](https://www.vapoursynth.com/). Upscaling shaders by [agyild](https://gist.github.com/agyild). Released under the [MIT License](LICENSE).
 
 Harbor is a player. It hosts, indexes and ships no media and bundles no content addons. Follow the laws where you live.
 
