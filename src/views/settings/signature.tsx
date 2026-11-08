@@ -1,7 +1,9 @@
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
+import { useT } from "@/lib/i18n";
 
 export function Signature() {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <div className="flex flex-col items-center gap-2 pt-2 pb-1">
@@ -9,6 +11,9 @@ export function Signature() {
         Made with
         <HeartGlyph />
         by the Harbor team
+      </p>
+      <p className="text-center text-[12px] tracking-wide text-ink-subtle">
+        {t("The original developers are no longer working on Harbor. This edition is made and maintained by 3zT.")}
       </p>
       <button
         onClick={() => setOpen((v) => !v)}
@@ -34,6 +39,12 @@ export function Signature() {
             together, insta play, and a lot more.
           </p>
           <p>A special thank you to the team at Stremio-Addons. Please consider supporting them.</p>
+          <p>
+            Harbor's original team has since stopped working on it. This edition, Harbor Frame
+            Generation, keeps it going with Boost (frame generation, upscaling and a GPU budget in
+            the player), automatic updates and continued fixes. It is made and maintained by 3zT.
+            All credit for Harbor itself goes to its original team.
+          </p>
           <p>
             This little footnote area we intend to keep unprofessional as opposed to the rest
             of this project. We hope you enjoy!

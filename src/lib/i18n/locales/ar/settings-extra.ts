@@ -845,6 +845,20 @@ const settingsExtra: Record<string, string> = {
   "Your theme": "ثيمك",
   "Zipped themes aren't supported yet. Drop the theme file directly.": "الثيمات المضغوطة غير مدعومة. اسحب ملف الثيم مباشرة.",
   "Harbor was updated to {tag}": "تم تحديث هاربور إلى {tag}",
+  "Harbor checks for a new version when it starts and every 30 minutes, downloads it in the background and installs it when you restart Harbor.": "يتحقق هاربور من وجود إصدار جديد عند التشغيل وكل 30 دقيقة، ينزّله في الخلفية ويثبّته لما تعيد تشغيل هاربور.",
+  "Build identity. Useful when reporting a problem.": "معلومات النسخة. مفيدة عند الإبلاغ عن مشكلة.",
+  "Checking for a newer version.": "جارٍ البحث عن إصدار أحدث.",
+  "Downloading {tag}: {pct}%": "جارٍ تنزيل {tag}: ‏{pct}%",
+  "Downloaded. Restart Harbor to install it.": "تم التنزيل. أعد تشغيل هاربور لتثبيته.",
+  "Harbor checks automatically every 30 minutes.": "يتحقق هاربور تلقائيًا كل 30 دقيقة.",
+  "{tag} available": "{tag} متوفر",
+  "Release notes": "ملاحظات الإصدار",
+  "Restart now": "أعد التشغيل الآن",
+  "Later": "لاحقًا",
+  "Maintained by": "المطوّر",
+  "{tag} is ready to install": "{tag} جاهز للتثبيت",
+  "The original developers are no longer working on Harbor. This edition is made and maintained by 3zT.": "توقف المطورون الأصليون عن العمل على هاربور. هذه النسخة من تطوير وصيانة 3zT.",
+  "Checking": "جارٍ التحقق",
 };
 
 export default settingsExtra;

@@ -701,6 +701,7 @@ pub fn run() {
             deeplink_is_stremio_registered,
             harbor_take_pending_file,
             selfupdate::selfupdate_stage,
+            selfupdate::selfupdate_install_now,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

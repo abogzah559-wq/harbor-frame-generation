@@ -294,7 +294,9 @@ async function guardPosition() {
 type Calib = { fps720: number; fps1080: number };
 
 // v3: v2 values could be stuck low (network stalls were counted as GPU lag).
-const SCALE_KEY = "harbor.boost.speedscale.v3";
+// v4: v3 values could be stuck low too (seeks and small drop rates were
+// counted as GPU lag); boost-7 logs showed 1080p speed at a third of normal.
+const SCALE_KEY = "harbor.boost.speedscale.v4";
 const calibCache = new Map<string, Calib>();
 const calibPending = new Map<string, Promise<Calib>>();
 
@@ -800,6 +802,7 @@ async function checkGpu() {
   const avg = gpuSamples.reduce((a, b) => a + b, 0) / gpuSamples.length;
   const peak = Math.max(...gpuSamples);
   gpuSamples = [];
+  console.warn("[boost] gpu", { avg: Math.round(avg), peak: Math.round(peak), limit: p.maxGpu, plan: `${lastPlan.height}p@${lastPlan.outFps}` });
 
   const pl = lastPlan;
   const key = calibKey(p);

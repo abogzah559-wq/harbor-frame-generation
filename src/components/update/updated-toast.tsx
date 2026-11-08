@@ -1,8 +1,9 @@
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Download, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { RELEASES_URL, startSelfUpdate, takeJustUpdated } from "@/lib/selfupdate";
+import { RELEASES_URL, installSelfUpdateNow, startSelfUpdate, takeJustUpdated, useSelfUpdate } from "@/lib/selfupdate";
 import { useT } from "@/lib/i18n";
+import { useView } from "@/lib/view";
 import { openUrl } from "@/lib/window";
 
 /** Starts the silent updater and, right after an update, shows a small green
@@ -31,7 +32,7 @@ export function UpdatedToast() {
     };
   }, []);
 
-  if (!tag) return null;
+  if (!tag) return <UpdateReadyNote />;
   return createPortal(
     <div
       onMouseEnter={() => (hover.current = true)}
@@ -48,6 +49,38 @@ export function UpdatedToast() {
         className="rounded-full bg-white/20 px-3 py-1 text-[12.5px] font-semibold transition-colors hover:bg-white/30"
       >
         {t("Details")}
+      </button>
+    </div>,
+    document.body,
+  );
+}
+
+/** Once a new release has downloaded: a small note with "Restart now".
+ *  Hidden while a video plays; "Later" leaves it for when Harbor closes. */
+function UpdateReadyNote() {
+  const t = useT();
+  const u = useSelfUpdate();
+  const { topKind } = useView();
+  const [later, setLater] = useState(false);
+  if (u.status !== "ready" || !u.tag || later || topKind === "player") return null;
+  return createPortal(
+    <div className="fixed bottom-6 left-1/2 z-[130] flex -translate-x-1/2 items-center gap-3 rounded-full border border-edge bg-raised/95 py-2 ps-3 pe-2 text-ink shadow-[0_14px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
+      <Download size={17} strokeWidth={2.4} className="text-accent" />
+      <span className="text-[13.5px] font-semibold">{t("{tag} is ready to install", { tag: u.tag })}</span>
+      <button
+        type="button"
+        onClick={installSelfUpdateNow}
+        className="rounded-full bg-accent px-3 py-1 text-[12.5px] font-semibold text-[#1b1304] transition-[filter] hover:brightness-105"
+      >
+        {t("Restart now")}
+      </button>
+      <button
+        type="button"
+        onClick={() => setLater(true)}
+        aria-label={t("Later")}
+        className="rounded-full p-1.5 text-ink-subtle transition-colors hover:bg-white/10 hover:text-ink"
+      >
+        <X size={14} strokeWidth={2.4} />
       </button>
     </div>,
     document.body,

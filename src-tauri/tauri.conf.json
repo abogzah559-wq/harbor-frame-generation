@@ -95,6 +95,7 @@
       "nsis": {
         "installMode": "currentUser",
         "installerHooks": "./installer-hooks.nsh",
+        "template": "installer/installer.nsi",
         "installerIcon": "icons/icon.ico",
         "headerImage": "installer/header.bmp",
         "sidebarImage": "installer/sidebar.bmp",

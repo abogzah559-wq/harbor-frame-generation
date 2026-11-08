@@ -1,4 +1,4 @@
-import { Check, Download, FlaskConical, Github, Link2, Loader2, Lock, RotateCw, Wrench } from "lucide-react";
+import { Check, Download, Github, Link2, Loader2, Lock, RotateCw, Wrench } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import cornerSvg from "@/assets/corner.svg";
 import harborDiscord from "@/assets/harbor-discord.svg";
@@ -17,18 +17,14 @@ import { clearResurfaceCache } from "@/lib/cw-resurface";
 import type { LibraryItem } from "@/lib/stremio";
 import { openUrl } from "@/lib/window";
 import {
-  checkForUpdate,
-  clearStagedUpdate,
-  openUpdatePanel,
-  updateAvailable,
-  useUpdate,
-} from "@/lib/updater/use-update";
-import { BetaTag } from "@/components/beta-tag";
-import { IS_BETA_BUILD } from "@/lib/build-info";
+  HARBOR_BUILD,
+  RELEASES_URL,
+  checkSelfUpdate,
+  installSelfUpdateNow,
+  useSelfUpdate,
+} from "@/lib/selfupdate";
 import { BackupRow } from "./backup-row";
 import { SettingsRecoverRow } from "./settings-recover-row";
-import { BuildFeedback } from "./build-feedback";
-import { RollbackRow } from "./rollback-row";
 import { PrivacyRow } from "./privacy-row";
 import { TrayRow } from "./tray-row";
 import { Section } from "./shared";
@@ -50,14 +46,9 @@ export function AdvancedPanel() {
       {isTauri && (
         <Section
           title={t("Updates")}
-          subtitle={t("Harbor checks harbor.site for new versions and installs them in place. Nothing installs until you choose to, and a dismissed update never nags you again.")}
+          subtitle={t("Harbor checks for a new version when it starts and every 30 minutes, downloads it in the background and installs it when you restart Harbor.")}
         >
-          <div className="flex flex-col gap-2.5">
-            <UpdatesRow />
-            <BetaChannelRow />
-            <RollbackRow />
-            <BuildFeedback />
-          </div>
+          <UpdatesRow />
         </Section>
       )}
 
@@ -138,7 +129,7 @@ export function AdvancedPanel() {
 
       <Section
         title={t("About")}
-        subtitle={t("Build identity. Useful when filing a bug report at bugs@harbor.site.")}
+        subtitle={t("Build identity. Useful when reporting a problem.")}
       >
         <AboutRow />
       </Section>
@@ -231,47 +222,6 @@ function WebBuildBanner() {
   );
 }
 
-function BetaChannelRow() {
-  const t = useT();
-  const { settings, update } = useSettings();
-  const on = settings.betaUpdates;
-  return (
-    <div className="flex items-start gap-3 rounded-xl border border-edge-soft bg-canvas/40 px-4 py-3.5">
-      <span
-        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-          on ? "bg-accent/15 text-accent" : "bg-raised text-ink-subtle"
-        }`}
-      >
-        <FlaskConical size={15} strokeWidth={2.2} />
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-[14px] font-medium text-ink">{t("Get beta updates")}</span>
-        <p className="text-[12.5px] leading-relaxed text-ink-subtle">
-          {t("Receive early builds with the newest fixes before they reach the stable release. Betas can be rough around the edges; switch this off to return to stable at the next update.")}
-        </p>
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        onClick={() => {
-          if (on) clearStagedUpdate();
-          update({ betaUpdates: !on });
-        }}
-        className={`mt-1 flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors ${
-          on ? "bg-accent" : "bg-raised"
-        }`}
-      >
-        <span
-          className={`h-5 w-5 rounded-full bg-canvas shadow-sm transition-transform ${
-            on ? "translate-x-5 rtl:-translate-x-5" : "translate-x-0"
-          }`}
-        />
-      </button>
-    </div>
-  );
-}
-
 function StremioDeeplinkRow() {
   const t = useT();
   const { settings, update } = useSettings();
@@ -325,25 +275,21 @@ function StremioDeeplinkRow() {
 
 function UpdatesRow() {
   const t = useT();
-  const u = useUpdate();
-  const ready = updateAvailable(u);
-  const busy = u.status === "checking";
+  const u = useSelfUpdate();
+  const ready = u.status === "ready";
+  const busy = u.status === "checking" || u.status === "downloading";
   const status =
     u.status === "checking"
-      ? t("Checking harbor.site for a newer build.")
+      ? t("Checking for a newer version.")
       : u.status === "downloading"
-        ? t("Downloading {pct}%", { pct: Math.round(u.progress * 100) })
-        : u.status === "downloaded"
-          ? t("Downloaded. Ready to install and restart.")
-          : u.status === "installing"
-            ? t("Installing. Harbor will restart.")
-            : u.status === "available"
-              ? t("A new version is ready to download.")
-              : u.status === "uptodate"
-                ? t("You're on the latest version.")
-                : u.status === "error" && u.manualCheck
-                  ? t("Couldn't reach the update server. Try again in a moment.")
-                  : t("Harbor checks automatically every few hours.");
+        ? t("Downloading {tag}: {pct}%", { tag: u.tag ?? "", pct: Math.round(u.progress * 100) })
+        : ready
+          ? t("Downloaded. Restart Harbor to install it.")
+          : u.status === "uptodate"
+            ? t("You're on the latest version.")
+            : u.status === "error"
+              ? t("Couldn't reach the update server. Try again in a moment.")
+              : t("Harbor checks automatically every 30 minutes.");
   return (
     <div className="flex items-center gap-3 rounded-xl border border-edge-soft bg-canvas/40 px-4 py-3.5">
       <div
@@ -354,22 +300,27 @@ function UpdatesRow() {
         <RotateCw size={18} strokeWidth={2} className={busy ? "animate-spin" : ""} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="flex items-center gap-2 text-[14px] font-medium text-ink">
-          {ready && u.version ? t("Harbor {version} available", { version: u.version }) : `Harbor ${__APP_VERSION__}`}
-          <BetaTag />
+        <span className="text-[14px] font-medium text-ink">
+          {ready && u.tag ? t("{tag} available", { tag: u.tag }) : `boost-${HARBOR_BUILD}`}
         </span>
         <span className="text-[12.5px] text-ink-subtle">{status}</span>
       </div>
+      <button
+        onClick={() => openUrl(RELEASES_URL)}
+        className="flex h-10 shrink-0 items-center rounded-lg px-3 text-[13px] font-medium text-ink-muted transition-colors hover:bg-raised hover:text-ink"
+      >
+        {t("Release notes")}
+      </button>
       {ready ? (
         <button
-          onClick={openUpdatePanel}
+          onClick={installSelfUpdateNow}
           className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg bg-accent px-4 text-[13px] font-semibold text-[#1b1304] transition-[filter] hover:brightness-105"
         >
-          <Download size={15} strokeWidth={2.2} /> {t("Update now")}
+          <Download size={15} strokeWidth={2.2} /> {t("Restart now")}
         </button>
       ) : (
         <button
-          onClick={() => void checkForUpdate(true)}
+          onClick={() => void checkSelfUpdate()}
           disabled={busy}
           className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-edge px-3.5 text-[13px] font-medium text-ink transition-colors hover:bg-raised disabled:opacity-60"
         >
@@ -583,9 +534,9 @@ function AboutRow() {
   const t = useT();
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-edge-soft bg-canvas/40 px-4 py-3.5 text-[13px] text-ink-muted">
-      <InfoLine label={t("Version")} value={`${__APP_VERSION__}${IS_BETA_BUILD ? " (Beta)" : ""}`} />
+      <InfoLine label={t("Version")} value={`boost-${HARBOR_BUILD} (Harbor ${__APP_VERSION__})`} />
       <InfoLine label={t("Build")} value={isTauri ? t("Desktop (Tauri 2 / WebView2)") : t("Web")} />
-      <InfoLine label={t("Bug reports")} value="bugs@harbor.site" />
+      <InfoLine label={t("Maintained by")} value="3zT" />
     </div>
   );
 }

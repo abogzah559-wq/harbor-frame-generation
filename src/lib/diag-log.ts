@@ -37,7 +37,7 @@ export function installDiagLog() {
     console[level] = (...args: unknown[]) => {
       orig(...args);
       const first = args[0];
-      if (level === "error" || (typeof first === "string" && /^\[(player|mpv|boost|resume)/.test(first))) {
+      if (level === "error" || (typeof first === "string" && /^\[(player|mpv|boost|resume|selfupdate)/.test(first))) {
         diag(level.toUpperCase(), ...args);
       }
     };
