@@ -26,7 +26,6 @@ ManifestDPIAwareness PerMonitorV2
 !define MUI_TEXTCOLOR FFFFFF
 !define DARK_BG 000000
 !define DARK_FG FFFFFF
-BrandingText "Harbor Frame Generation"
 
 ; Colour every child of the window on the stack. Push buttons keep the
 ; system look; check boxes, radio buttons and group boxes lose their visual
@@ -143,7 +142,7 @@ Var WixMode
 Var OldMainBinaryName
 
 Name "${PRODUCTNAME}"
-BrandingText "${COPYRIGHT}"
+BrandingText "Harbor Frame Generation"
 OutFile "${OUTFILE}"
 
 ; We don't actually use this value as default install path,
