@@ -51,9 +51,14 @@ Function ${UN}DarkChildren
   dark_button:
     System::Call 'user32::GetWindowLongW(p R8, i -16) i .R6'
     IntOp $R6 $R6 & 0xF
-    IntCmp $R6 1 dark_loop dark_loop
+    IntCmp $R6 1 dark_push dark_push
     System::Call 'uxtheme::SetWindowTheme(p R8, w "", w "")'
     SetCtlColors $R8 ${DARK_FG} ${DARK_BG}
+    Goto dark_loop
+  dark_push:
+    ; Windows' own dark buttons (dark face, white text)
+    System::Call 'uxtheme::#133(p R8, i 1)'
+    System::Call 'uxtheme::SetWindowTheme(p R8, w "DarkMode_Explorer", p 0)'
     Goto dark_loop
   dark_list:
     SendMessage $R8 0x1001 0 0x000000
@@ -66,6 +71,8 @@ Function ${UN}DarkChildren
     SendMessage $R8 0x0409 0 0xFFFFFF
     Goto dark_loop
   dark_rich:
+    System::Call 'uxtheme::#133(p R8, i 1)'
+    System::Call 'uxtheme::SetWindowTheme(p R8, w "DarkMode_Explorer", p 0)'
     ; EM_SETBKGNDCOLOR, then EM_SETCHARFORMAT(SCF_ALL) with CFM_COLOR white
     SendMessage $R8 0x0443 0 0x000000
     System::Call '*(i 92, i 0x40000000, i 0, i 0, i 0, i 0xFFFFFF, &i68) p .R6'
@@ -81,6 +88,18 @@ FunctionEnd
 
 Function ${UN}DarkShow
   Push $0
+  ; dark mode for this process, black title bar with white caption
+  System::Call 'uxtheme::#135(i 2)'
+  System::Call 'uxtheme::#133(p $HWNDPARENT, i 1)'
+  System::Call '*(i 1) p .r0'
+  System::Call 'dwmapi::DwmSetWindowAttribute(p $HWNDPARENT, i 20, p r0, i 4)'
+  System::Free $0
+  System::Call '*(i 0x000000) p .r0'
+  System::Call 'dwmapi::DwmSetWindowAttribute(p $HWNDPARENT, i 35, p r0, i 4)'
+  System::Free $0
+  System::Call '*(i 0xFFFFFF) p .r0'
+  System::Call 'dwmapi::DwmSetWindowAttribute(p $HWNDPARENT, i 36, p r0, i 4)'
+  System::Free $0
   Push $HWNDPARENT
   Call ${UN}DarkChildren
   FindWindow $0 "#32770" "" $HWNDPARENT
