@@ -102,9 +102,15 @@ Function ${UN}DarkShow
   System::Free $0
   Push $HWNDPARENT
   Call ${UN}DarkChildren
-  FindWindow $0 "#32770" "" $HWNDPARENT
-  Push $0
-  Call ${UN}DarkChildren
+  ; every page dialog (welcome and finish pages use their own full-size one)
+  StrCpy $0 0
+  dark_pages:
+    FindWindow $0 "#32770" "" $HWNDPARENT $0
+    IntCmp $0 0 dark_pages_done
+    Push $0
+    Call ${UN}DarkChildren
+    Goto dark_pages
+  dark_pages_done:
   Pop $0
 FunctionEnd
 !macroend
