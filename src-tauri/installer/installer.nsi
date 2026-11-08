@@ -26,6 +26,7 @@ ManifestDPIAwareness PerMonitorV2
 !define MUI_TEXTCOLOR FFFFFF
 !define DARK_BG 000000
 !define DARK_FG FFFFFF
+BrandingText "Harbor Frame Generation"
 
 ; Colour every child of the window on the stack. Push buttons keep the
 ; system look; check boxes, radio buttons and group boxes lose their visual
@@ -45,7 +46,7 @@ Function ${UN}DarkChildren
     StrCmp $R7 "Button" dark_button
     StrCmp $R7 "SysListView32" dark_list
     StrCmp $R7 "msctls_progress32" dark_progress
-    StrCmp $R7 "RichEdit20W" dark_loop
+    StrCmp $R7 "RichEdit20W" dark_rich
     SetCtlColors $R8 ${DARK_FG} ${DARK_BG}
     Goto dark_loop
   dark_button:
@@ -64,6 +65,13 @@ Function ${UN}DarkChildren
     System::Call 'uxtheme::SetWindowTheme(p R8, w "", w "")'
     SendMessage $R8 0x2001 0 0x262626
     SendMessage $R8 0x0409 0 0xFFFFFF
+    Goto dark_loop
+  dark_rich:
+    ; EM_SETBKGNDCOLOR, then EM_SETCHARFORMAT(SCF_ALL) with CFM_COLOR white
+    SendMessage $R8 0x0443 0 0x000000
+    System::Call '*(i 92, i 0x40000000, i 0, i 0, i 0, i 0xFFFFFF, &i68) p .R6'
+    System::Call 'user32::SendMessageW(p R8, i 0x0444, i 4, p R6)'
+    System::Free $R6
     Goto dark_loop
   dark_done:
   Pop $R6
@@ -215,6 +223,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 ; 2. License Page (if defined)
 !if "${LICENSE}" != ""
   !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
+  !define MUI_PAGE_CUSTOMFUNCTION_SHOW DarkShow
   !insertmacro MUI_PAGE_LICENSE "${LICENSE}"
 !endif
 
