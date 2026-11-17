@@ -14,8 +14,8 @@ bytes = { version = "1.10" }
 futures-util = { version = "0.3.31", default-features = false, features = ["std"] }
 getrandom = { version = "0.4" }
 librqbit-core = { version = "9.0.1", default-features = false, features = ["sha1-ring"] }
-librqbit-dht = { version = "9.0.1" }
-librqbit-tracker-comms = { version = "9.0.1" }
+librqbit-dht = { version = "=9.0.1" }
+librqbit-tracker-comms = { version = "=9.0.1" }
 torrentplayer-net = { path = "../torrentplayer-net" }
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 serde = { version = "1.0.228", features = ["derive"] }
