@@ -196,6 +196,13 @@ fn write_config(app: &AppHandle, cfg: &EngineConfig) -> Result<(), String> {
     std::fs::write(&p, serde_json::to_string(cfg).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
 }
 
+/// A protected network mode (SOCKS5 / WireGuard) is selected for the fast
+/// engine: then the classic engine, which always connects directly, must not
+/// download anything.
+fn protected_mode(cfg: &EngineConfig) -> bool {
+    cfg.fast_engine != Some(false) && cfg.net.as_ref().is_some_and(|n| n.is_protected())
+}
+
 /// The fast engine, started on first use, unless turned off in Settings.
 async fn fast_engine(app: &AppHandle) -> Option<Arc<swarm::Swarm>> {
     let cfg = read_config(app);
@@ -233,19 +240,26 @@ async fn init(app: AppHandle) -> Result<(), String> {
     let dir = engine_dir(&app, &cfg)?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     cache_sweep::run(&dir, cfg.retention_hours.unwrap_or(24), cfg.max_gb.unwrap_or(0), &HashSet::new());
-    let (session, dht_tier) = match new_session(&dir, true, true, true).await {
-        Ok(s) => (s, 1u8),
-        Err(e1) => {
-            eprintln!("[torrent-engine] tier1 (inbound + warm dht) unavailable ({e1}); trying no-inbound + warm dht");
-            match new_session(&dir, false, true, true).await {
-                Ok(s) => (s, 2u8),
-                Err(e2) => {
-                    eprintln!("[torrent-engine] tier2 unavailable ({e2}); trying cold ephemeral dht");
-                    match new_session(&dir, false, true, false).await {
-                        Ok(s) => (s, 3u8),
-                        Err(e3) => {
-                            eprintln!("[torrent-engine] tier3 (cold dht) unavailable ({e3}); starting without dht");
-                            (new_session(&dir, false, false, false).await?, 4u8)
+    // Behind a VPN / proxy the classic engine only serves the local HTTP
+    // route: no DHT and no listening port, so it sends nothing directly.
+    let protected = protected_mode(&cfg);
+    let (session, dht_tier) = if protected {
+        (new_session(&dir, false, false, false).await?, 4u8)
+    } else {
+        match new_session(&dir, true, true, true).await {
+            Ok(s) => (s, 1u8),
+            Err(e1) => {
+                eprintln!("[torrent-engine] tier1 (inbound + warm dht) unavailable ({e1}); trying no-inbound + warm dht");
+                match new_session(&dir, false, true, true).await {
+                    Ok(s) => (s, 2u8),
+                    Err(e2) => {
+                        eprintln!("[torrent-engine] tier2 unavailable ({e2}); trying cold ephemeral dht");
+                        match new_session(&dir, false, true, false).await {
+                            Ok(s) => (s, 3u8),
+                            Err(e3) => {
+                                eprintln!("[torrent-engine] tier3 (cold dht) unavailable ({e3}); starting without dht");
+                                (new_session(&dir, false, false, false).await?, 4u8)
+                            }
                         }
                     }
                 }
@@ -262,7 +276,7 @@ async fn init(app: AppHandle) -> Result<(), String> {
             eprintln!("[torrent-engine] could not drop restored torrent {id}: {e:#}");
         }
     }
-    let side_dht = dht_boot::build().await;
+    let side_dht = if protected { None } else { dht_boot::build().await };
     let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
         .await
         .map_err(|e| e.to_string())?;
@@ -362,6 +376,7 @@ pub async fn torrent_engine_add(
     file_idx: Option<usize>,
 ) -> Result<AddResult, String> {
     let session = ensure_session(&app).await?;
+    let protected = protected_mode(&read_config(&app));
     if let Some(fast) = fast_engine(&app).await {
         match fast.add(&magnet, &trackers).await {
             Ok((info_hash, files)) => {
@@ -380,8 +395,13 @@ pub async fn torrent_engine_add(
                     stream_base: format!("http://127.0.0.1:{port}/stream"),
                 });
             }
+            Err(e) if protected => return Err(e),
             Err(e) => eprintln!("[torrent-engine] fast engine add failed, using the classic one: {e}"),
         }
+    }
+    if protected {
+        // never fall back to a direct connection behind the kill switch
+        return Err("the protected connection (VPN / proxy) is not available".to_string());
     }
     let seed = match current_side_dht() {
         Some(d) => dht_boot::seed_peers(&d, magnet.as_str(), 40, Duration::from_secs(3)).await,
@@ -459,7 +479,7 @@ pub(crate) async fn ensure_added(
     trackers: Vec<String>,
     file_idx: Option<usize>,
 ) -> Result<(String, Vec<EngineFile>), String> {
-    if let Some(fast) = swarm::running().filter(|s| s.has(hash)) {
+    if let Some(fast) = swarm::running().filter(|s| s.has(hash) || s.is_protected()) {
         let (info_hash, files) = fast.add(&build_magnet(hash), &trackers).await?;
         if let Some(idx) = file_idx {
             fast.select(&info_hash, idx).await?;
@@ -669,6 +689,7 @@ pub async fn torrent_engine_remove(app: AppHandle, info_hash: String, delete_fil
 
 #[tauri::command]
 pub async fn torrent_engine_restart(app: AppHandle) -> Result<EngineStatusDto, String> {
+    swarm::shutdown().await;
     stop();
     tokio::time::sleep(Duration::from_millis(600)).await;
     init(app).await?;
@@ -767,6 +788,7 @@ pub async fn torrent_engine_fast_set(
 ) -> Result<FastEngineState, String> {
     let mut cfg = read_config(&app);
     let was_enabled = cfg.fast_engine != Some(false);
+    let was_protected = protected_mode(&cfg);
     cfg.fast_engine = Some(enabled);
     cfg.net = Some(net.clone());
     write_config(&app, &cfg)?;
@@ -776,6 +798,13 @@ pub async fn torrent_engine_fast_set(
         fast.apply_network(&net).await?;
     } else if enabled {
         let _ = fast_engine(&app).await;
+    }
+    if was_protected != protected_mode(&cfg) {
+        // the classic engine turns its DHT and listening port off (or back
+        // on) to match: behind a VPN / proxy it must send nothing directly
+        stop();
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        init(app.clone()).await?;
     }
     Ok(fast_state(&app))
 }

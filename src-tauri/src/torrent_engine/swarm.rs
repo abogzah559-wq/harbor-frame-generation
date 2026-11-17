@@ -13,7 +13,8 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
 
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
@@ -45,6 +46,11 @@ pub struct NetSettings {
 }
 
 impl NetSettings {
+    /// SOCKS5 or WireGuard: torrent traffic must never go out directly.
+    pub fn is_protected(&self) -> bool {
+        matches!(self.mode.as_str(), "socks5" | "wireguard")
+    }
+
     fn to_config(&self) -> NetworkConfig {
         let mode = match self.mode.as_str() {
             "socks5" => NetworkMode::Socks5(Socks5Config {
@@ -91,21 +97,30 @@ pub struct Swarm {
     infos: Mutex<HashMap<String, TorrentInfo>>,
     /// Keyed by lower-case info hash: one played file per torrent.
     active: Mutex<HashMap<String, Active>>,
+    /// A protected network mode is selected.
+    protected: AtomicBool,
 }
 
-static SWARM: AsyncMutex<Option<Arc<Swarm>>> = AsyncMutex::const_new(None);
+/// Serializes starting and stopping the engine.
+static STARTING: AsyncMutex<()> = AsyncMutex::const_new(());
+/// The running engine; read without waiting by the stream route and the
+/// other commands.
+static RUNNING: RwLock<Option<Arc<Swarm>>> = RwLock::new(None);
 
 /// The running engine, started on first use. `None` when it cannot start
 /// (the caller then uses the classic engine).
 pub async fn get(dir: PathBuf, net: &NetSettings) -> Option<Arc<Swarm>> {
-    let mut slot = SWARM.lock().await;
-    if let Some(s) = slot.as_ref() {
-        return Some(s.clone());
+    if let Some(s) = running() {
+        return Some(s);
+    }
+    let _guard = STARTING.lock().await;
+    if let Some(s) = running() {
+        return Some(s);
     }
     match start(dir, net).await {
         Ok(s) => {
             let s = Arc::new(s);
-            *slot = Some(s.clone());
+            *RUNNING.write().unwrap_or_else(|e| e.into_inner()) = Some(s.clone());
             Some(s)
         }
         Err(e) => {
@@ -117,7 +132,7 @@ pub async fn get(dir: PathBuf, net: &NetSettings) -> Option<Arc<Swarm>> {
 
 /// The engine if it is already running; never starts it.
 pub fn running() -> Option<Arc<Swarm>> {
-    SWARM.try_lock().ok().and_then(|s| s.clone())
+    RUNNING.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 async fn start(dir: PathBuf, net: &NetSettings) -> Result<Swarm, String> {
@@ -136,14 +151,16 @@ async fn start(dir: PathBuf, net: &NetSettings) -> Result<Swarm, String> {
         network,
         infos: Mutex::new(HashMap::new()),
         active: Mutex::new(HashMap::new()),
+        protected: AtomicBool::new(net.is_protected()),
     })
 }
 
 /// Stops the engine (app exit or a full engine reset).
 pub async fn shutdown() {
-    let taken = SWARM.lock().await.take();
+    let _guard = STARTING.lock().await;
+    let taken = RUNNING.write().unwrap_or_else(|e| e.into_inner()).take();
     if let Some(s) = taken {
-        s.active.lock().unwrap().clear();
+        s.active.lock().unwrap_or_else(|e| e.into_inner()).clear();
         s.engine.shutdown().await;
         s.network.shutdown();
     }
@@ -187,12 +204,12 @@ impl Swarm {
             .iter()
             .map(|f| EngineFile { idx: f.index, name: file_name(&f.path), length: f.len })
             .collect();
-        self.infos.lock().unwrap().insert(hash.clone(), info);
+        self.infos.lock().unwrap_or_else(|e| e.into_inner()).insert(hash.clone(), info);
         Ok((hash, files))
     }
 
     fn info(&self, hash: &str) -> Option<TorrentInfo> {
-        self.infos.lock().unwrap().get(&hash.to_ascii_lowercase()).cloned()
+        self.infos.lock().unwrap_or_else(|e| e.into_inner()).get(&hash.to_ascii_lowercase()).cloned()
     }
 
     pub fn has(&self, hash: &str) -> bool {
@@ -204,7 +221,7 @@ impl Swarm {
     pub async fn select(&self, hash: &str, file: usize) -> Result<(), String> {
         let hash = hash.to_ascii_lowercase();
         let info = self.info(&hash).ok_or_else(|| "no torrent".to_string())?;
-        if let Some(a) = self.active.lock().unwrap().get(&hash) {
+        if let Some(a) = self.active.lock().unwrap_or_else(|e| e.into_inner()).get(&hash) {
             if a.file == file {
                 return Ok(());
             }
@@ -218,7 +235,7 @@ impl Swarm {
             .await
             .map_err(|e| e.to_string())?;
         let media = self.engine.media_source(id, file).await.map_err(|e| e.to_string())?;
-        self.active.lock().unwrap().insert(
+        self.active.lock().unwrap_or_else(|e| e.into_inner()).insert(
             hash,
             Active { torrent: id, file, playback, media, next_prefetched: false },
         );
@@ -227,7 +244,7 @@ impl Swarm {
 
     /// The readable file, if it is the one being played.
     pub fn media(&self, hash: &str, file: usize) -> Option<Arc<dyn MediaSource>> {
-        let active = self.active.lock().unwrap();
+        let active = self.active.lock().unwrap_or_else(|e| e.into_inner());
         active
             .get(&hash.to_ascii_lowercase())
             .filter(|a| a.file == file)
@@ -249,7 +266,7 @@ impl Swarm {
     pub async fn playhead(&self, hash: &str, file: usize, position: f64, duration: Option<f64>) {
         let hash = hash.to_ascii_lowercase();
         let prefetch = {
-            let mut active = self.active.lock().unwrap();
+            let mut active = self.active.lock().unwrap_or_else(|e| e.into_inner());
             let Some(a) = active.get_mut(&hash).filter(|a| a.file == file) else {
                 return;
             };
@@ -264,7 +281,7 @@ impl Swarm {
         };
         if let Some(id) = prefetch {
             if let Some(next) = self.next_video(&hash, file) {
-                if let Some(a) = self.active.lock().unwrap().get(&hash) {
+                if let Some(a) = self.active.lock().unwrap_or_else(|e| e.into_inner()).get(&hash) {
                     a.playback.set_next_file(Some(next));
                 }
                 if let Err(e) = self.engine.prefetch_file(id, Some(next)).await {
@@ -298,10 +315,10 @@ impl Swarm {
     /// removes it after the retention time.
     pub async fn remove(&self, hash: &str) -> bool {
         let hash = hash.to_ascii_lowercase();
-        let Some(info) = self.infos.lock().unwrap().remove(&hash) else {
+        let Some(info) = self.infos.lock().unwrap_or_else(|e| e.into_inner()).remove(&hash) else {
             return false;
         };
-        self.active.lock().unwrap().remove(&hash);
+        self.active.lock().unwrap_or_else(|e| e.into_inner()).remove(&hash);
         if let Err(e) = self.engine.remove(info.id).await {
             eprintln!("[torrent-engine] remove failed: {e}");
         }
@@ -310,7 +327,12 @@ impl Swarm {
 
     /// Lower-case info hashes of torrents open in this engine.
     pub fn open_hashes(&self) -> Vec<String> {
-        self.infos.lock().unwrap().keys().cloned().collect()
+        self.infos.lock().unwrap_or_else(|e| e.into_inner()).keys().cloned().collect()
+    }
+
+    /// Whether all torrent traffic must stay on this engine (SOCKS5 / WireGuard).
+    pub fn is_protected(&self) -> bool {
+        self.protected.load(Ordering::Relaxed)
     }
 
     pub fn network_status(&self) -> NetworkStatus {
@@ -318,6 +340,7 @@ impl Swarm {
     }
 
     pub async fn apply_network(&self, net: &NetSettings) -> Result<NetworkStatus, String> {
+        self.protected.store(net.is_protected(), Ordering::Relaxed);
         self.engine
             .apply_network(net.to_config())
             .await

@@ -577,20 +577,24 @@ export function PlayerView({ src }: { src: PlayerSrc }) {
       autoTranslatedRef.current = autoTranslateKey;
       return;
     }
+    // Wait a little: subtitle addons often add their tracks (maybe an
+    // Arabic one) a few seconds after playback starts.
     const timer = window.setTimeout(() => {
       const b = bridgeRef.current;
-      if (!b) return;
+      const tracks = snapRef.current.subtitleTracks;
+      if (!b || tracks.length === 0) return;
       autoTranslatedRef.current = autoTranslateKey;
-      if (!subTracks.some((tr) => tr.selected)) {
+      if (tracks.some(isArabic)) return;
+      if (!tracks.some((tr) => tr.selected)) {
         const pick =
-          subTracks.find((tr) => /^(en|eng)\b/i.test(tr.lang ?? "") && !tr.forced) ??
-          subTracks.find((tr) => !tr.forced) ??
-          subTracks[0];
+          tracks.find((tr) => /^(en|eng)\b/i.test(tr.lang ?? "") && !tr.forced) ??
+          tracks.find((tr) => !tr.forced) ??
+          tracks[0];
         b.setSubtitleTrack(pick.id);
       }
       // give mpv a moment to switch tracks before reading the cues
       window.setTimeout(() => window.dispatchEvent(new Event(TRANSLATE_EVENT)), 800);
-    }, 3000);
+    }, 8000);
     return () => window.clearTimeout(timer);
   }, [settings.geminiKey, settings.aiAutoTranslate, isPlayingNow, subTracks, autoTranslateKey]);
 

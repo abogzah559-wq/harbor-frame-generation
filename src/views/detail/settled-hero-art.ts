@@ -41,18 +41,17 @@ function probeWidth(url: string): Promise<number> {
 }
 
 /** First candidate (in priority order) that is at least MIN_WIDTH wide;
- *  otherwise the widest one that loaded. */
+ *  otherwise the widest one that loaded. Tried one at a time, so usually
+ *  only the image that ends up on screen is downloaded. */
 async function pickBackdrop(candidates: string[]): Promise<string | undefined> {
   const list = [...new Set(candidates.filter(Boolean).map(toOriginal))].slice(0, 4);
-  if (list.length === 0) return undefined;
-  const widths = await Promise.all(list.map(probeWidth));
-  const sharp = list.findIndex((_, i) => widths[i] >= MIN_WIDTH);
-  if (sharp >= 0) return list[sharp];
-  let best = -1;
-  widths.forEach((w, i) => {
-    if (w > 0 && (best < 0 || w > widths[best])) best = i;
-  });
-  return best >= 0 ? list[best] : undefined;
+  let best: { url: string; width: number } | null = null;
+  for (const url of list) {
+    const width = await probeWidth(url);
+    if (width >= MIN_WIDTH) return url;
+    if (width > 0 && (!best || width > best.width)) best = { url, width };
+  }
+  return best?.url;
 }
 
 export function useSettledHeroArt({

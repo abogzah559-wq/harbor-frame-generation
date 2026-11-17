@@ -176,7 +176,7 @@ export function CustomizableRows({
   };
   // Collections go between rows that are really on screen: one after the
   // first film & series row, then one every few rows (never two in a row);
-  // the anime collection right before the anime rows.
+  // the anime collections start right before the anime rows.
   let ordered = rows;
   if (!editMode && (filmCollections?.length || animeCollections?.length)) {
     const film = filmCollections ?? [];

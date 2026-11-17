@@ -724,8 +724,8 @@ export function Home({ active = true }: { active?: boolean }) {
     () => ["nuvio-discover", "nuvio-genres", "nuvio-moods", "nuvio-based-on"].map(homePreset).filter((r): r is HomeRow => !!r),
     [homePreset],
   );
-  // The anime collection, then anime genres and anime moods, all placed
-  // together right before the anime rows.
+  // The anime collection, anime genres and anime moods: the first right
+  // before the anime rows, the other two spread between them.
   const animeCollections = useMemo(
     () =>
       settings.hideContent.anime
