@@ -229,6 +229,7 @@ export const DEFAULT: Settings = {
   aiSearchModel: "",
   aiGroqKey: "",
   geminiKey: "",
+  aiAutoTranslate: true,
   jinaKey: "",
   aiWebSearch: false,
   playerD3d11Flip: true,

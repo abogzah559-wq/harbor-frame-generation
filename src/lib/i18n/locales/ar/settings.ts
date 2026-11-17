@@ -1741,6 +1741,10 @@ const settings: Record<string, string> = {
   "Then in the player's subtitle menu press Translate to Arabic: any subtitle, in any language, becomes natural Arabic.":
     "بعدها من قائمة الترجمة في المشغل اضغط «ترجم للعربي»: أي ترجمة وبأي لغة تتحول لعربي طبيعي.",
   "Translate to Arabic": "ترجم للعربي",
+  "Translate subtitles to Arabic automatically": "ترجمة الترجمات للعربي تلقائياً",
+  "When a title has no Arabic subtitle, the selected subtitle is translated with Gemini as soon as playback starts.":
+    "إذا العمل ما فيه ترجمة عربية، تنترجم الترجمة المختارة بـ Gemini أول ما يبدأ التشغيل.",
+  "The Gemini key was rejected. Check it in Settings › Library & Metadata": "مفتاح Gemini مرفوض، تأكد منه من الإعدادات › المكتبة والبيانات",
   "Getting subtitle…": "أجهّز الترجمة…",
   "Translating {pct}%": "يترجم {pct}%",
   "Arabic ready": "العربي جاهز",

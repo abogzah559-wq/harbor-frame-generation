@@ -15,8 +15,11 @@ import { toSrt } from "./serialize";
 export const GEMINI_KEY_URL = "https://aistudio.google.com/apikey";
 export const TRANSLATE_EVENT = "harbor:ai-translate-sub";
 
-const MODEL = "gemini-2.5-flash";
-const FALLBACK_MODEL = "gemini-2.0-flash";
+/** Newest first. gemini-2.0-flash was shut down in June 2026 and
+ *  gemini-2.5-flash only answers keys that used it before, so a new key
+ *  needs a 3.x model. The first one that answers is remembered. */
+const MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
+const MODEL_KEY = "harbor.ai-subs.model";
 const BATCH = 90;
 const PARALLEL = 2;
 const INDEX_KEY = "harbor.ai-subs.v1";
@@ -55,7 +58,15 @@ Translate every subtitle line into natural, fluent Modern Standard Arabic as a s
 - Never add notes, explanations, or quotes. Never merge or split lines.
 Return a JSON array of strings with exactly the same number of items, in the same order as the input.`;
 
-async function gemini(key: string, model: string, lines: string[], context: string): Promise<string[]> {
+/** Keep reasoning short: subtitles need speed, not deliberation. */
+function thinkingFor(model: string, on: boolean): Record<string, unknown> {
+  if (!on) return {};
+  if (model.startsWith("gemini-2.5")) return { thinkingConfig: { thinkingBudget: 0 } };
+  if (model.startsWith("gemini-3")) return { thinkingConfig: { thinkingLevel: "low" } };
+  return {};
+}
+
+async function gemini(key: string, model: string, lines: string[], context: string, thinking = true): Promise<string[]> {
   const body = {
     systemInstruction: { parts: [{ text: SYSTEM }] },
     contents: [
@@ -75,7 +86,7 @@ async function gemini(key: string, model: string, lines: string[], context: stri
       temperature: 0.3,
       responseMimeType: "application/json",
       responseSchema: { type: "ARRAY", items: { type: "STRING" } },
-      ...(model.startsWith("gemini-2.5") ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+      ...thinkingFor(model, thinking),
     },
   };
   const res = await invoke<HarborFetchResponse>("harbor_fetch", {
@@ -99,7 +110,16 @@ async function gemini(key: string, model: string, lines: string[], context: stri
     throw err;
   }
   const json = JSON.parse(res.body);
-  const text: string = json?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
+  // skip any thought-summary parts; only the answer is JSON
+  const parts: { text?: string; thought?: boolean }[] = json?.candidates?.[0]?.content?.parts ?? [];
+  const text = parts
+    .filter((p) => !p.thought)
+    .map((p) => p.text ?? "")
+    .join("")
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
+  if (!text) throw Object.assign(new Error(json?.promptFeedback?.blockReason ? `blocked: ${json.promptFeedback.blockReason}` : "empty response"), { status: 0 });
   const out = JSON.parse(text);
   if (!Array.isArray(out)) throw new Error("bad response");
   return out.map((s) => String(s ?? ""));
@@ -107,11 +127,62 @@ async function gemini(key: string, model: string, lines: string[], context: stri
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+function savedModel(): string | null {
+  try {
+    const m = localStorage.getItem(MODEL_KEY);
+    return m && MODELS.includes(m) ? m : null;
+  } catch {
+    return null;
+  }
+}
+let workingModel: string | null = savedModel();
+function rememberModel(m: string) {
+  workingModel = m;
+  try {
+    localStorage.setItem(MODEL_KEY, m);
+  } catch {
+    /* ignore */
+  }
+}
+
+type ApiError = Error & { status?: number };
+const isKeyProblem = (e: ApiError) =>
+  e.status === 401 || /api key not valid|api_key_invalid|invalid api key|permission denied.*key/i.test(e.message);
+const isModelProblem = (e: ApiError) =>
+  e.status === 404 ||
+  ((e.status === 400 || e.status === 403) && /model|not found|not supported|not available|no longer|deprecated/i.test(e.message));
+const isThinkingProblem = (e: ApiError) => e.status === 400 && /thinking/i.test(e.message);
+
+/** Calls the remembered model, or walks the list until one answers. */
+async function callAnyModel(key: string, lines: string[], context: string): Promise<string[]> {
+  const order = workingModel ? [workingModel, ...MODELS.filter((m) => m !== workingModel)] : MODELS;
+  let last: ApiError | null = null;
+  for (const model of order) {
+    try {
+      let out: string[];
+      try {
+        out = await gemini(key, model, lines, context, true);
+      } catch (e) {
+        if (!isThinkingProblem(e as ApiError)) throw e;
+        out = await gemini(key, model, lines, context, false);
+      }
+      if (workingModel !== model) rememberModel(model);
+      return out;
+    } catch (e) {
+      const err = e as ApiError;
+      if (isKeyProblem(err)) throw Object.assign(new Error("bad-key"), { status: err.status });
+      if (!isModelProblem(err)) throw err;
+      last = err;
+    }
+  }
+  throw last ?? new Error("no-model");
+}
+
 async function translateBatch(key: string, lines: string[], context: string): Promise<string[]> {
-  let model = MODEL;
+  let lastError: unknown = null;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      const out = await gemini(key, model, lines, context);
+      const out = await callAnyModel(key, lines, context);
       if (out.length === lines.length) return out;
       // wrong count: split the block and try the halves
       if (lines.length > 8) {
@@ -123,13 +194,14 @@ async function translateBatch(key: string, lines: string[], context: string): Pr
         return [...a, ...b];
       }
     } catch (e) {
-      const status = (e as { status?: number }).status ?? 0;
-      if (status === 400 || status === 401 || status === 403) throw e;
-      if (status === 404) model = FALLBACK_MODEL;
-      await sleep(status === 429 ? 8000 * (attempt + 1) : 1500 * (attempt + 1));
+      lastError = e;
+      const err = e as ApiError;
+      if (err.message === "bad-key" || err.message === "no-model" || isModelProblem(err)) throw e;
+      if (err.status === 400 || err.status === 403) throw e;
+      await sleep(err.status === 429 ? 8000 * (attempt + 1) : 1500 * (attempt + 1));
     }
   }
-  throw new Error("translation failed");
+  throw lastError instanceof Error ? lastError : new Error("translation failed");
 }
 
 const clean = (t: string) => t.replace(/\{\\[^}]*\}/g, "").replace(/<[^>]+>/g, "").trim();

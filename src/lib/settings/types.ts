@@ -261,6 +261,8 @@ export type Settings = {
   aiGroqKey: string;
   /** Google Gemini key: translates subtitles into Arabic */
   geminiKey: string;
+  /** With a Gemini key: translate a non-Arabic subtitle to Arabic as soon as playback starts */
+  aiAutoTranslate: boolean;
   jinaKey: string;
   aiWebSearch: boolean;
   playerD3d11Flip: boolean;

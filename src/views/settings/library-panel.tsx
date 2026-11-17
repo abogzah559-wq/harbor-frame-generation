@@ -471,6 +471,12 @@ export function LibraryPanel({
             </>
           }
         />
+        <ToggleRow
+          label={t("Translate subtitles to Arabic automatically")}
+          sub={t("When a title has no Arabic subtitle, the selected subtitle is translated with Gemini as soon as playback starts.")}
+          value={settings.aiAutoTranslate}
+          onChange={(v) => update({ aiAutoTranslate: v })}
+        />
         <KeyField
           label={t("AudD · in-player song ID")}
           placeholder={t("AudD API token")}

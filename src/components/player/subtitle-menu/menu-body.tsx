@@ -448,6 +448,8 @@ function AiTranslateButton({ disabled }: { disabled: boolean }) {
     st.status === "error"
       ? st.error === "no-key"
         ? tr("Add a Gemini key in Settings › Library & Metadata")
+        : st.error === "bad-key"
+          ? tr("The Gemini key was rejected. Check it in Settings › Library & Metadata")
         : st.error === "no-cues" || st.error?.startsWith("extract")
           ? tr("No subtitle to translate")
           : `${tr("Translation failed")}: ${st.error ?? ""}`

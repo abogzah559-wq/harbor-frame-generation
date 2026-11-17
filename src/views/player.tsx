@@ -536,6 +536,40 @@ export function PlayerView({ src }: { src: PlayerSrc }) {
     return () => window.removeEventListener(TRANSLATE_EVENT, onTranslate);
   }, [settings.geminiKey, src.url, src.headers, src.meta.id, src.meta.name, season, episode]);
 
+  // Automatic Arabic: with a Gemini key and the option on, a title that has
+  // no Arabic subtitle gets its subtitle translated once playback is under
+  // way. Picks a subtitle (English first) when none is selected.
+  const autoTranslatedRef = useRef<string | null>(null);
+  const autoTranslateKey = `${src.meta.id}|${season ?? ""}|${episode ?? ""}|${src.url}`;
+  const subTracks = snap.subtitleTracks;
+  const playing = snap.status === "playing";
+  useEffect(() => {
+    if (!settings.geminiKey || !settings.aiAutoTranslate || !playing) return;
+    if (autoTranslatedRef.current === autoTranslateKey) return;
+    if (subTracks.length === 0) return;
+    const isArabic = (tr: { lang?: string; label: string; title?: string }) =>
+      /^(ar|ara)\b/i.test(tr.lang ?? "") || /arabic|عربي|العربية/i.test(`${tr.label} ${tr.title ?? ""}`);
+    if (subTracks.some(isArabic)) {
+      autoTranslatedRef.current = autoTranslateKey;
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const b = bridgeRef.current;
+      if (!b) return;
+      autoTranslatedRef.current = autoTranslateKey;
+      if (!subTracks.some((tr) => tr.selected)) {
+        const pick =
+          subTracks.find((tr) => /^(en|eng)\b/i.test(tr.lang ?? "") && !tr.forced) ??
+          subTracks.find((tr) => !tr.forced) ??
+          subTracks[0];
+        b.setSubtitleTrack(pick.id);
+      }
+      // give mpv a moment to switch tracks before reading the cues
+      window.setTimeout(() => window.dispatchEvent(new Event(TRANSLATE_EVENT)), 800);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [settings.geminiKey, settings.aiAutoTranslate, playing, subTracks, autoTranslateKey]);
+
   const volumeIndicatorTimerRef = useRef<number | null>(null);
   const [volumeIndicator, setVolumeIndicator] = useState<VolumeIndicatorState>({
     visible: false,
