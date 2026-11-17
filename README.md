@@ -25,6 +25,9 @@ This is a Windows build of [Harbor](docs/HARBOR-UPSTREAM.md), a desktop client f
 | **GPU limit** | You set a limit (80 % by default). Boost reads the real GPU use, the number Task Manager shows, and works up to it. |
 | **Head start** | Frames are made up to 2 s ahead of the picture, so a heavy scene is covered by frames already finished. |
 | **Scene cuts** | Real cuts switch cleanly instead of morphing. Fast camera moves are still interpolated. |
+| **Fast torrents** | A streaming-first engine fetches the moment you skip to first, so seeking resumes in about a second, and pre-loads the next episode of a season pack. |
+| **VPN protection** | Torrent traffic can go through a SOCKS5 proxy or an in-app WireGuard tunnel, with a kill switch that never falls back to your normal connection. |
+| **Arabic subtitles** | With your own Gemini key, any subtitle is translated into natural Arabic, automatically when a title has no Arabic subtitle. |
 | **Updates** | Harbor checks for a new release every 30 minutes, downloads it in the background and installs it when you close Harbor, or right away with **Restart now** in Settings → Advanced. |
 
 ## Install
@@ -90,7 +93,7 @@ pnpm run setup:fonts
 pnpm tauri build
 ```
 
-Release installers are built by the `windows-build` workflow. Running it with a `release_tag` such as `boost-8` publishes a release with [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) as its notes. The `scene-cut-test` workflow runs the scene-cut detector in the same VapourSynth runtime Boost installs, on real video.
+Release installers are built by the `windows-build` workflow. Running it with a `release_tag` such as `boost-9` publishes a release with [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) as its notes. The `scene-cut-test` workflow runs the scene-cut detector in the same VapourSynth runtime Boost installs, on real video.
 
 | Part | Where |
 |---|---|
@@ -98,6 +101,10 @@ Release installers are built by the `windows-build` workflow. Running it with a 
 | Boost settings panel | `src/components/player/boost/` |
 | Runtime install, VapourSynth script, calibration, GPU reading | `src-tauri/src/boost.rs` |
 | Self-update | `src/lib/selfupdate.ts` |
+| Torrent engine (fast engine adapter, cache sweep, stream route) | `src-tauri/src/torrent_engine/` |
+| Streaming engine crates ([TorrentPlayer](https://github.com/torrentplayer/torrentplayer), MIT / Apache-2.0) | `src-tauri/engine/` |
+| Arabic subtitle and synopsis translation | `src/lib/subtitles/ai-translate.ts` |
+| Home banner selection | `src/views/home/hero-mix.ts` |
 | Rust core shared with Harbor | `harbor-core/` |
 
 ## Credits and license
