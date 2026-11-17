@@ -70,12 +70,12 @@ export const TopRankCard = memo(function TopRankCard({ meta, rank }: { meta: Met
       onContextMenu={(e) => openContextMenu(e, { kind: "meta", meta })}
       onFocus={(e) => hoverPreviewFocus(meta, e.currentTarget)}
       onBlur={(e) => hoverPreviewBlur(e.currentTarget)}
-      className="group relative w-full min-w-0"
+      className="group relative w-full min-w-0 hover:z-20 focus-visible:z-20"
       style={{ aspectRatio: "228 / 268", containerType: "inline-size" }}
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute -start-[3%] top-0 font-bold leading-[0.85] text-transparent"
+        className="pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] text-transparent transition-transform duration-[280ms] ease-out group-hover:scale-[1.04] group-focus-visible:scale-[1.04]"
         style={{
           fontFamily: '"Fraunces", "Iowan Old Style", "Georgia", serif',
           fontSize: "calc(100cqw * 240 / 228)",
@@ -85,18 +85,29 @@ export const TopRankCard = memo(function TopRankCard({ meta, rank }: { meta: Met
       >
         {rank}
       </span>
+      <span
+        aria-hidden
+        className="harbor-rank-fill pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] opacity-0 transition-[opacity,transform] duration-[280ms] ease-out group-hover:scale-[1.04] group-hover:opacity-100 group-focus-visible:scale-[1.04] group-focus-visible:opacity-100"
+        style={{
+          fontFamily: '"Fraunces", "Iowan Old Style", "Georgia", serif',
+          fontSize: "calc(100cqw * 240 / 228)",
+          letterSpacing: "-0.05em",
+        }}
+      >
+        {rank}
+      </span>
       <div
         data-preview-anchor
         onPointerEnter={(e) => hoverPreviewEnter(meta, e.currentTarget, e.buttons)}
         onPointerLeave={(e) => hoverPreviewLeave(e.currentTarget)}
-        className="absolute end-0 top-0 z-10 w-[60%] transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0.24,1)] group-hover:-translate-y-2"
+        className="harbor-rank-poster absolute end-0 top-0 z-10 w-[60%]"
       >
         <Poster
           src={poster.src}
           onError={poster.onError}
           seed={meta.id}
           ratio="portrait"
-          className="harbor-card-ring rounded-xl shadow-[0_0_0_rgba(0,0,0,0)] transition-shadow duration-300 group-hover:shadow-[0_24px_44px_-14px_rgba(0,0,0,0.6)]"
+          className="harbor-card-ring rounded-xl shadow-[0_0_0_rgba(0,0,0,0)] transition-shadow duration-300 group-hover:shadow-[0_28px_50px_-14px_rgba(0,0,0,0.7)] group-focus-visible:shadow-[0_28px_50px_-14px_rgba(0,0,0,0.7)]"
         />
         {inWatchlist && <WatchlistDot />}
         <AwardDot name={meta.name} year={parseAwardYear(meta.releaseInfo)} />
@@ -127,12 +138,12 @@ export const AnimeRankCard = memo(function AnimeRankCard({ meta, rank }: { meta:
       onContextMenu={(e) => openContextMenu(e, { kind: "meta", meta })}
       onFocus={(e) => hoverPreviewFocus(meta, e.currentTarget)}
       onBlur={(e) => hoverPreviewBlur(e.currentTarget)}
-      className="group relative w-full min-w-0"
+      className="group relative w-full min-w-0 hover:z-20 focus-visible:z-20"
       style={{ aspectRatio: "228 / 268", containerType: "inline-size" }}
     >
       <span
         aria-hidden
-        className="font-anime pointer-events-none absolute -start-[3%] top-0 font-bold leading-[0.85] text-transparent"
+        className="font-anime pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] text-transparent transition-transform duration-[280ms] ease-out group-hover:scale-[1.04] group-focus-visible:scale-[1.04]"
         style={{
           fontSize: "calc(100cqw * 240 / 228)",
           letterSpacing: "-0.02em",
@@ -141,18 +152,28 @@ export const AnimeRankCard = memo(function AnimeRankCard({ meta, rank }: { meta:
       >
         {rank}
       </span>
+      <span
+        aria-hidden
+        className="font-anime harbor-rank-fill pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] opacity-0 transition-[opacity,transform] duration-[280ms] ease-out group-hover:scale-[1.04] group-hover:opacity-100 group-focus-visible:scale-[1.04] group-focus-visible:opacity-100"
+        style={{
+          fontSize: "calc(100cqw * 240 / 228)",
+          letterSpacing: "-0.02em",
+        }}
+      >
+        {rank}
+      </span>
       <div
         data-preview-anchor
         onPointerEnter={(e) => hoverPreviewEnter(meta, e.currentTarget, e.buttons)}
         onPointerLeave={(e) => hoverPreviewLeave(e.currentTarget)}
-        className="absolute end-0 top-0 z-10 w-[60%] transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0.24,1)] group-hover:-translate-y-2"
+        className="harbor-rank-poster absolute end-0 top-0 z-10 w-[60%]"
       >
         <Poster
           src={poster.src}
           onError={poster.onError}
           seed={meta.id}
           ratio="portrait"
-          className="harbor-card-ring rounded-xl shadow-[0_0_0_rgba(0,0,0,0)] transition-shadow duration-300 group-hover:shadow-[0_24px_44px_-14px_rgba(0,0,0,0.6)]"
+          className="harbor-card-ring rounded-xl shadow-[0_0_0_rgba(0,0,0,0)] transition-shadow duration-300 group-hover:shadow-[0_28px_50px_-14px_rgba(0,0,0,0.7)] group-focus-visible:shadow-[0_28px_50px_-14px_rgba(0,0,0,0.7)]"
         />
         {inWatchlist && <WatchlistDot />}
         <AwardDot name={meta.name} year={parseAwardYear(meta.releaseInfo)} />

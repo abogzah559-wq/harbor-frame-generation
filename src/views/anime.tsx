@@ -559,7 +559,7 @@ export function AnimeView({ active = true }: { active?: boolean }) {
                 ) : spec.rank && r.metas.length >= 10 ? (
                   <Row
                     title={t("Top 10 {name}", { name: t(spec.title).replace(/^Top\s*/i, "") })}
-                    min={180}
+                    min={240}
                     shape="rank"
                     scrollKey={`anime:${spec.key}`}
                     onViewAll={viewAll}

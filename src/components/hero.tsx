@@ -177,7 +177,7 @@ export const Hero = memo(function Hero({
   return (
     <section
       onClick={() => openMeta({ ...meta, logo: logo ?? meta.logo })}
-      className={`group relative cursor-pointer overflow-hidden bg-canvas ${full ? "h-[clamp(560px,82vh,920px)] rounded-none" : "h-[clamp(600px,64vh,780px)] rounded-[28px]"}`}
+      className={`group relative cursor-pointer overflow-hidden bg-canvas ${full ? "h-[clamp(620px,88vh,1070px)] rounded-none" : "h-[clamp(660px,74vh,930px)] rounded-[28px]"}`}
       style={{ isolation: "isolate" }}
     >
       {bg && loadBackdrop && (

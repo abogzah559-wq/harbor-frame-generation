@@ -14,7 +14,6 @@ import {
   toggleRowNumerals,
   type HomeRowCustomization,
 } from "@/lib/home-customization";
-import { StreamingRail } from "@/components/streaming-rail";
 import { TopRankCard } from "@/components/top-rank-card";
 import { hasTmdbProviderAddon, loadAddonRows, userAddons, type AddonRow } from "@/lib/addons";
 import { isAnimeRow } from "@/views/anime";
@@ -22,7 +21,7 @@ import { buildArabicHomeRows } from "@/lib/arabic/home-rows";
 import { useAuth } from "@/lib/auth";
 import { type Meta } from "@/lib/cinemeta";
 import { t, useT, useUiLanguage } from "@/lib/i18n";
-import { useSettings, type StreamingService } from "@/lib/settings";
+import { useSettings } from "@/lib/settings";
 import { trackEvent } from "@/lib/discover";
 import { publishResumeStates } from "@/lib/hover-preview/store";
 import { readResumeEntry, saveResumeBatch } from "@/lib/resume";
@@ -793,16 +792,6 @@ export function Home({ active = true }: { active?: boolean }) {
     });
   }, [homeRowsCustom, mutateHomeRows]);
 
-  const enabledServices = useMemo(
-    () =>
-      settings.tmdbKey
-        ? (Object.keys(settings.streaming) as StreamingService[]).filter(
-            (s) => settings.streaming[s],
-          )
-        : [],
-    [settings.tmdbKey, settings.streaming],
-  );
-
   return (
     <main
       ref={scrollCb}
@@ -882,11 +871,6 @@ export function Home({ active = true }: { active?: boolean }) {
               onDismiss={onDismissCw}
             />
           </div>
-          {settings.homeMode !== "classic" && (
-            <div data-scroll-anchor="streaming">
-              <StreamingRail services={enabledServices} />
-            </div>
-          )}
           {settings.homeMode !== "classic" && top10.length >= 10 && !homeRowsCustom.hidden.includes("top10") && (
             <div data-scroll-anchor="top10">
               {editMode && (
@@ -898,7 +882,7 @@ export function Home({ active = true }: { active?: boolean }) {
               )}
               <Row
                 title={rows[0].name.toLowerCase().includes("top") ? t(rows[0].name) : t("Top 10 {name}", { name: t(rows[0].name) })}
-                min={180}
+                min={240}
                 shape="rank"
               >
                 {top10.map((m, i) => (
