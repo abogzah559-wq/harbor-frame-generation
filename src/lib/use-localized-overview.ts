@@ -6,15 +6,15 @@ import { useSettings } from "@/lib/settings";
 export function useLocalizedOverview(meta: Meta): string | undefined {
   const { settings } = useSettings();
   const isTmdb = meta.id.startsWith("tmdb:");
-  const [overview, setOverview] = useState<string | undefined>(
-    isTmdb ? undefined : meta.description,
-  );
+  // Start from the text the item already carries, so a synopsis never pops
+  // in late; swap in the localized one only when it differs.
+  const [overview, setOverview] = useState<string | undefined>(meta.description || undefined);
   useEffect(() => {
     if (!isTmdb || !settings.tmdbKey) {
       setOverview(meta.description);
       return;
     }
-    setOverview(undefined);
+    setOverview(meta.description || undefined);
     let alive = true;
     void tmdbMetadataOverview(settings.tmdbKey, meta.id).then((o) => {
       if (alive) setOverview(o ?? meta.description);

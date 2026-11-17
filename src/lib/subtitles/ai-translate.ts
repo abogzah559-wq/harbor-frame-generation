@@ -66,9 +66,16 @@ function thinkingFor(model: string, on: boolean): Record<string, unknown> {
   return {};
 }
 
-async function gemini(key: string, model: string, lines: string[], context: string, thinking = true): Promise<string[]> {
+async function gemini(
+  key: string,
+  model: string,
+  lines: string[],
+  context: string,
+  thinking = true,
+  system: string = SYSTEM,
+): Promise<string[]> {
   const body = {
-    systemInstruction: { parts: [{ text: SYSTEM }] },
+    systemInstruction: { parts: [{ text: system }] },
     contents: [
       {
         role: "user",
@@ -154,17 +161,17 @@ const isModelProblem = (e: ApiError) =>
 const isThinkingProblem = (e: ApiError) => e.status === 400 && /thinking/i.test(e.message);
 
 /** Calls the remembered model, or walks the list until one answers. */
-async function callAnyModel(key: string, lines: string[], context: string): Promise<string[]> {
+async function callAnyModel(key: string, lines: string[], context: string, system: string = SYSTEM): Promise<string[]> {
   const order = workingModel ? [workingModel, ...MODELS.filter((m) => m !== workingModel)] : MODELS;
   let last: ApiError | null = null;
   for (const model of order) {
     try {
       let out: string[];
       try {
-        out = await gemini(key, model, lines, context, true);
+        out = await gemini(key, model, lines, context, true, system);
       } catch (e) {
         if (!isThinkingProblem(e as ApiError)) throw e;
-        out = await gemini(key, model, lines, context, false);
+        out = await gemini(key, model, lines, context, false, system);
       }
       if (workingModel !== model) rememberModel(model);
       return out;
@@ -319,5 +326,40 @@ export async function translateCurrentSubtitle(opts: {
     set({ status: "error", error: e instanceof Error ? e.message : String(e) });
   } finally {
     running = false;
+  }
+}
+
+const SYNOPSIS_SYSTEM = `You translate film, series and anime synopses into natural, fluent Modern Standard Arabic.
+Keep the meaning and tone, write names in Arabic letters as Arab fans know them, and keep it about the same length.
+Never add notes or quotes. Return a JSON array with exactly one string: the Arabic synopsis.`;
+const SYNOPSIS_KEY = "harbor.ai-synopsis.v1";
+
+/** One synopsis in Arabic, cached on disk by its text. Null when there is
+ *  no key or the request fails; callers keep the original text then. */
+export async function translateSynopsisToArabic(key: string, text: string, title = ""): Promise<string | null> {
+  const src = text.trim();
+  if (!key || !src) return null;
+  const id = hash(src);
+  let store: Record<string, string> = {};
+  try {
+    store = JSON.parse(localStorage.getItem(SYNOPSIS_KEY) ?? "{}");
+  } catch {
+    store = {};
+  }
+  if (store[id]) return store[id];
+  try {
+    const [ar] = await callAnyModel(key, [src], title, SYNOPSIS_SYSTEM);
+    const out = (ar ?? "").trim();
+    if (!out) return null;
+    store[id] = out;
+    const entries = Object.entries(store).slice(-300);
+    try {
+      localStorage.setItem(SYNOPSIS_KEY, JSON.stringify(Object.fromEntries(entries)));
+    } catch {
+      /* ignore */
+    }
+    return out;
+  } catch {
+    return null;
   }
 }

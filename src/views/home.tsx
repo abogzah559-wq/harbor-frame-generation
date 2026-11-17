@@ -68,7 +68,7 @@ import {
 } from "./home/home-rows";
 import type { HomeRow } from "./home/home-types";
 import { loadNuvioPresets } from "@/lib/nuvio/presets";
-import { interleaveHero, isRecent, launchOrder, looksAnime, recentHeroMix } from "./home/hero-mix";
+import { HERO_REFRESH_MS, interleaveHero, isRecent, launchOrder, looksAnime, recentHeroMix } from "./home/hero-mix";
 import { RowSkeleton } from "./home/row-skeleton";
 import { AddSourceModal } from "@/components/add-source-modal";
 import type { SourceRow } from "@/lib/custom-sources";
@@ -566,16 +566,24 @@ export function Home({ active = true }: { active?: boolean }) {
 
   useEffect(() => {
     let cancelled = false;
-    void recentHeroMix(settings.tmdbKey, !settings.hideContent.anime).then((mix) => {
-      if (!cancelled) setHeroMix({ ...mix, done: true });
-    });
+    const load = () =>
+      void recentHeroMix(settings.tmdbKey, !settings.hideContent.anime, settings.geminiKey).then((mix) => {
+        if (cancelled) return;
+        // a failed refresh keeps the banner that is already showing
+        if (mix.general.length || mix.anime.length) setHeroMix({ ...mix, done: true });
+        else setHeroMix((prev) => (prev.done ? prev : { ...mix, done: true }));
+      });
+    load();
+    const timer = window.setInterval(load, HERO_REFRESH_MS);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
-  }, [settings.tmdbKey, settings.hideContent.anime]);
+  }, [settings.tmdbKey, settings.hideContent.anime, settings.geminiKey]);
 
-  /** Banner: a new random order every launch, alternating film/series and
-   *  anime, only titles from the last ~1.5 years. */
+  /** Banner: alternating film/series and anime, only titles from the last
+   *  two years, each with a sharp backdrop and a synopsis; rebuilt every
+   *  few hours. */
   const mixedHero = useMemo<Meta[]>(() => {
     const HERO_COUNT = 8;
     // wait for the TMDB mix so the banner doesn't swap titles a second after launch
@@ -585,10 +593,12 @@ export function Home({ active = true }: { active?: boolean }) {
     if (general.length < 2) {
       // no TMDB key (or it failed): use what the home rows already loaded
       const loaded = [...heroPool, ...rows.flatMap((r) => r.metas.slice(0, 20))];
-      general = launchOrder(loaded.filter((m) => !!m.background && isRecent(m) && !looksAnime(m)));
+      general = launchOrder(loaded.filter((m) => !!m.background && !!m.description?.trim() && isRecent(m) && !looksAnime(m)));
     }
     if (anime.length < 1 && !settings.hideContent.anime) {
-      anime = launchOrder(animeRows.flatMap((r) => r.metas.slice(0, 30)).filter((m) => isRecent(m)));
+      anime = launchOrder(
+        animeRows.flatMap((r) => r.metas.slice(0, 30)).filter((m) => !!m.background && !!m.description?.trim() && isRecent(m)),
+      );
     }
     return interleaveHero(general, anime, HERO_COUNT);
   }, [heroMix, heroPool, rows, animeRows, settings.hideContent.anime, settings.tmdbKey]);
