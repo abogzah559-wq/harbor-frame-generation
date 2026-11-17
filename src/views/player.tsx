@@ -542,9 +542,9 @@ export function PlayerView({ src }: { src: PlayerSrc }) {
   const autoTranslatedRef = useRef<string | null>(null);
   const autoTranslateKey = `${src.meta.id}|${season ?? ""}|${episode ?? ""}|${src.url}`;
   const subTracks = snap.subtitleTracks;
-  const playing = snap.status === "playing";
+  const isPlayingNow = snap.status === "playing";
   useEffect(() => {
-    if (!settings.geminiKey || !settings.aiAutoTranslate || !playing) return;
+    if (!settings.geminiKey || !settings.aiAutoTranslate || !isPlayingNow) return;
     if (autoTranslatedRef.current === autoTranslateKey) return;
     if (subTracks.length === 0) return;
     const isArabic = (tr: { lang?: string; label: string; title?: string }) =>
@@ -568,7 +568,7 @@ export function PlayerView({ src }: { src: PlayerSrc }) {
       window.setTimeout(() => window.dispatchEvent(new Event(TRANSLATE_EVENT)), 800);
     }, 3000);
     return () => window.clearTimeout(timer);
-  }, [settings.geminiKey, settings.aiAutoTranslate, playing, subTracks, autoTranslateKey]);
+  }, [settings.geminiKey, settings.aiAutoTranslate, isPlayingNow, subTracks, autoTranslateKey]);
 
   const volumeIndicatorTimerRef = useRef<number | null>(null);
   const [volumeIndicator, setVolumeIndicator] = useState<VolumeIndicatorState>({
