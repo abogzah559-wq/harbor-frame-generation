@@ -714,8 +714,13 @@ export function Home({ active = true }: { active?: boolean }) {
     () => ["nuvio-discover", "nuvio-genres", "nuvio-moods", "nuvio-based-on"].map(homePreset).filter((r): r is HomeRow => !!r),
     [homePreset],
   );
-  const animeCollection = useMemo(
-    () => (settings.hideContent.anime ? null : homePreset("nuvio-anime")),
+  // The anime collection, then anime genres and anime moods, all placed
+  // together right before the anime rows.
+  const animeCollections = useMemo(
+    () =>
+      settings.hideContent.anime
+        ? []
+        : ["nuvio-anime", "nuvio-anime-genres", "nuvio-anime-moods"].map(homePreset).filter((r): r is HomeRow => !!r),
     [homePreset, settings.hideContent.anime],
   );
   const arabicKeys = useMemo(() => new Set(arabicRows.map((r) => r.key)), [arabicRows]);
@@ -904,7 +909,7 @@ export function Home({ active = true }: { active?: boolean }) {
             <CustomizableRows
               rows={editMode ? editRows : visibleRows}
               filmCollections={filmCollections}
-              animeCollection={animeCollection}
+              animeCollections={animeCollections}
               animeKeys={animeKeys}
               arabicKeys={arabicKeys}
               editMode={editMode}

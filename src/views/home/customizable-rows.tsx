@@ -114,7 +114,7 @@ export function CustomizableRows({
   stremioWatched,
   homeLanguages,
   filmCollections,
-  animeCollection,
+  animeCollections,
   animeKeys,
   arabicKeys,
 }: {
@@ -137,7 +137,7 @@ export function CustomizableRows({
   homeLanguages?: string[];
   /** collections to place between the rows that end up on screen */
   filmCollections?: HomeRow[];
-  animeCollection?: HomeRow | null;
+  animeCollections?: HomeRow[];
   animeKeys?: Set<string>;
   arabicKeys?: Set<string>;
 }) {
@@ -178,7 +178,7 @@ export function CustomizableRows({
   // first film & series row, then one every few rows (never two in a row);
   // the anime collection right before the anime rows.
   let ordered = rows;
-  if (!editMode && (filmCollections?.length || animeCollection)) {
+  if (!editMode && (filmCollections?.length || animeCollections?.length)) {
     const film = filmCollections ?? [];
     const isShown = (r: HomeRow) => !customization.hidden.includes(r.key) && shownMetaCount(r) > 0;
     const isFilm = (r: HomeRow) => !r.sourceRow && !animeKeys?.has(r.key) && !arabicKeys?.has(r.key) && isShown(r);
@@ -187,19 +187,26 @@ export function CustomizableRows({
     const out: HomeRow[] = [];
     let seen = 0;
     let c = 0;
-    let animePlaced = false;
+    // Anime collections: the first right before the anime rows, the rest
+    // spread between them (one after every two anime rows) so no two
+    // collection rows sit back to back.
+    const anime = animeCollections ?? [];
+    let a = 0;
+    let animeSeen = 0;
     for (const row of rows) {
-      if (animeCollection && !animePlaced && animeKeys?.has(row.key) && isShown(row)) {
-        out.push(animeCollection);
-        animePlaced = true;
-      }
+      const isAnimeRow = !!animeKeys?.has(row.key) && isShown(row);
+      if (isAnimeRow && a === 0 && anime.length) out.push(anime[a++]);
       out.push(row);
+      if (isAnimeRow) {
+        animeSeen++;
+        if (a > 0 && a < anime.length && animeSeen % 2 === 0) out.push(anime[a++]);
+      }
       if (isFilm(row)) {
         seen++;
         if (c < film.length && (seen === 1 || (seen - 1) % gap === 0)) out.push(film[c++]);
       }
     }
-    if (animeCollection && !animePlaced) out.push(animeCollection);
+    while (a < anime.length) out.push(anime[a++]);
     ordered = out;
   }
   return (

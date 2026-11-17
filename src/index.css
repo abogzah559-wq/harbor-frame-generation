@@ -1869,3 +1869,36 @@ header .harbor-win-control.harbor-win-solid.harbor-win-close:hover {
     transition: none;
   }
 }
+
+/* Collection tiles: lift, slow push-in on the art, soft light ring. */
+.harbor-folder-card {
+  transform: translate3d(0, 0, 0) scale(1);
+  transition:
+    transform 300ms cubic-bezier(0.32, 0.72, 0.24, 1),
+    box-shadow 300ms ease-out,
+    border-color 300ms ease-out;
+}
+.harbor-folder-card:hover,
+.harbor-folder-card:focus-visible {
+  transform: translate3d(0, -4px, 0) scale(1.03);
+  box-shadow:
+    0 26px 48px -18px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 0 28px -6px color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+.harbor-folder-art {
+  transform: scale(1);
+  transition:
+    transform 700ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 500ms ease-out;
+}
+.harbor-folder-card:hover .harbor-folder-art,
+.harbor-folder-card:focus-visible .harbor-folder-art {
+  transform: scale(1.08);
+}
+@media (prefers-reduced-motion: reduce) {
+  .harbor-folder-card,
+  .harbor-folder-art {
+    transition: none;
+  }
+}

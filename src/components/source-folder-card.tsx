@@ -64,7 +64,7 @@ export function SourceFolderCard({
         onBlur={() => setHover(false)}
         disabled={loading}
         title={isLogo ? folder.title : undefined}
-        className={`group/card relative ${aspectRatio} w-full flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-edge-soft text-start shadow-[0_4px_18px_-10px_rgba(0,0,0,0.5)] ring-1 ring-inset ring-white/0 transition-[border-color,transform] duration-300 hover:-translate-y-0.5 hover:border-edge hover:ring-white/15 ${
+        className={`harbor-folder-card group/card relative ${aspectRatio} w-full flex-shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-edge-soft text-start shadow-[0_4px_18px_-10px_rgba(0,0,0,0.5)] ring-1 ring-inset ring-white/0 hover:border-edge hover:ring-white/20 focus-visible:border-edge focus-visible:ring-white/20 ${
           isLogo ? "bg-gradient-to-br from-white/[0.07] to-white/[0.02]" : "bg-surface"
         }`}
       >
@@ -82,8 +82,8 @@ export function SourceFolderCard({
                 draggable={false}
                 style={folder.coverCrop ? { transform: "scale(1.8)", transformOrigin: "100% 0%" } : undefined}
                 className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-                  hover && folder.focusGifUrl ? "opacity-0" : "opacity-100"
-                }`}
+                  folder.coverCrop ? "" : "harbor-folder-art"
+                } ${hover && folder.focusGifUrl ? "opacity-0" : "opacity-100"}`}
               />
             )}
             {folder.focusGifUrl && (
@@ -98,15 +98,16 @@ export function SourceFolderCard({
               />
             )}
             {showTitle && (
-              <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+              <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent transition-opacity duration-300" />
+              <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover/card:opacity-100 group-focus-visible/card:opacity-100" />
             )}
           </>
         )}
         <div aria-hidden className="absolute inset-0 bg-black/10 transition-colors duration-300 group-hover/card:bg-black/0" />
 
         {showTitle && (
-          <div className="absolute bottom-4 start-5 end-5 flex flex-col gap-1 border-s-[3px] border-white/85 ps-3 text-start drop-shadow-[0_2px_14px_rgba(0,0,0,0.85)]">
-            <h3 className="font-display text-[27px] font-extrabold leading-[1.1] text-white">{folder.title}</h3>
+          <div className="absolute bottom-4 start-5 end-5 flex flex-col gap-1 border-s-[3px] border-white/85 ps-3 text-start drop-shadow-[0_2px_14px_rgba(0,0,0,0.85)] transition-transform duration-300 ease-out group-hover/card:-translate-y-1.5 group-focus-visible/card:-translate-y-1.5">
+            <h3 className="font-display text-[27px] font-extrabold leading-[1.1] text-white/95 transition-colors duration-300 group-hover/card:text-white">{folder.title}</h3>
             {folder.subtitle && <p className="text-[12.5px] font-medium leading-snug text-white/85">{folder.subtitle}</p>}
           </div>
         )}
