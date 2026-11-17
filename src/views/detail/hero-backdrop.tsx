@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
-function Layer({ url, first, onReady }: { url: string; first: boolean; onReady: () => void }) {
+function Layer({ url, first, blurUp, onReady }: { url: string; first: boolean; blurUp: boolean; onReady: () => void }) {
   const lowUrl = url.replace(/\/t\/p\/(w\d+|original)\//, "/t/p/w300/");
   const highUrl = url.replace(/\/t\/p\/(w\d+|original)\//, "/t/p/original/");
-  const canBlurUp = first && lowUrl !== highUrl;
+  const canBlurUp = blurUp && first && lowUrl !== highUrl;
   const [ready, setReady] = useState(false);
   const done = () => {
     setReady(true);
@@ -35,7 +35,8 @@ function Layer({ url, first, onReady }: { url: string; first: boolean; onReady: 
   );
 }
 
-export function HeroBackdrop({ url }: { url: string }) {
+/** blurUp: show a blurred low-resolution copy while the full image loads. */
+export function HeroBackdrop({ url, blurUp = true }: { url: string; blurUp?: boolean }) {
   const [layers, setLayers] = useState<{ id: number; url: string }[]>([{ id: 0, url }]);
   const nextId = useRef(1);
   useEffect(() => {
@@ -51,7 +52,7 @@ export function HeroBackdrop({ url }: { url: string }) {
   return (
     <>
       {layers.map((l) => (
-        <Layer key={l.id} url={l.url} first={l.id === 0} onReady={() => settle(l.id)} />
+        <Layer key={l.id} url={l.url} first={l.id === 0} blurUp={blurUp} onReady={() => settle(l.id)} />
       ))}
     </>
   );

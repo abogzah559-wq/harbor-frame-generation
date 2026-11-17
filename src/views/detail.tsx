@@ -74,6 +74,7 @@ import {
 } from "@/lib/detail-customization";
 import { EpisodeDownloadButton } from "./detail/episode-download-button";
 import { HeroBackdrop } from "./detail/hero-backdrop";
+import { useSettledHeroArt } from "./detail/settled-hero-art";
 import { isTitleUpcoming } from "./detail/helpers";
 import { HeroAwardsCorner } from "./detail/hero-awards";
 import { CrunchyrollAwardsCorner } from "./detail/crunchyroll-corner";
@@ -171,7 +172,6 @@ export function DetailView({
   const failedKitsu = useRef<number | null>(null);
   const [streamers, setStreamers] = useState<KitsuStreamer[]>([]);
   const [backdrops, setBackdrops] = useState<string[]>([]);
-  const [backdropIdx, setBackdropIdx] = useState(0);
   const pinnedBackdrop = useTitleBackdrop(meta.id);
   const pinnedBackdropHi = pinnedBackdrop
     ? pinnedBackdrop.replace(/\/t\/p\/w\d+\//, "/t/p/original/")
@@ -348,7 +348,6 @@ export function DetailView({
     failedKitsu.current = null;
     setStreamers([]);
     setBackdrops([]);
-    setBackdropIdx(0);
     setCinemetaFull(meta.videos && meta.videos.length > 0 ? meta : null);
     if (meta.id.startsWith("tt") && !addonNative) {
       fetchCinemetaMeta(narrowMediaType(meta.type), meta.id)
@@ -642,13 +641,6 @@ export function DetailView({
     }
   }, [detail, settings.tmdbKey, settings.omdbKey]);
 
-  useEffect(() => {
-    if (backdrops.length < 2) return;
-    const id = window.setInterval(() => {
-      setBackdropIdx((i) => (i + 1) % backdrops.length);
-    }, 12000);
-    return () => window.clearInterval(id);
-  }, [backdrops]);
 
   useEffect(() => {
     setWatchProviders([]);
@@ -676,9 +668,20 @@ export function DetailView({
   };
   const overview = detail?.overview ?? (meta.id.startsWith("tmdb:") ? "" : meta.description) ?? "";
   const tagline = detail?.tagline ?? "";
+  const liveLogo = loading ? detail?.logo : (detail?.logo || meta.logo);
+  // Chosen once per title and kept: no swapping as later sources answer.
+  const heroArt = useSettledHeroArt({
+    id: meta.id,
+    ready: addonNative || (!loading && !detectingAnime),
+    candidates: [detail?.backdrop, backdrops[0], meta.background],
+    logo: liveLogo,
+    title,
+    pinned: pinnedBackdropHi,
+  });
   const backdrop =
-    pinnedBackdropHi || backdrops[backdropIdx] || meta.background || detail?.backdrop || (loading ? undefined : meta.poster) || undefined;
-  const logo = loading ? detail?.logo : (detail?.logo || meta.logo);
+    heroArt?.backdrop || pinnedBackdropHi || detail?.backdrop || backdrops[0] || meta.background || (loading ? undefined : meta.poster) || undefined;
+  const logo = heroArt ? heroArt.logo : liveLogo;
+  const heroTitle = heroArt?.title || title;
   const year = detail?.year ?? meta.releaseInfo;
   const releaseYearNum = parseAwardYear(year);
   const imdbRatingValue =
@@ -1019,22 +1022,12 @@ export function DetailView({
           data-tauri-drag-region
           className="harbor-bleed-stremio relative h-[78vh] min-h-[640px] overflow-hidden"
         >
-          {!pinnedBackdrop && backdrops.length >= 2 ? (
-            backdrops.map((b, i) => (
-              <img
-                key={b}
-                src={b}
-                alt=""
-                decoding="async"
-                fetchPriority={i === 0 ? "high" : "low"}
-                loading={i < 3 ? "eager" : "lazy"}
-                className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-[1200ms] ${i === backdropIdx ? "opacity-100" : "opacity-0"}`}
-              />
-            ))
-          ) : backdrop ? (
-            <HeroBackdrop url={backdrop} />
+          {heroArt?.backdrop ? (
+            <HeroBackdrop url={heroArt.backdrop} blurUp={false} />
+          ) : heroArt && backdrop ? (
+            <HeroBackdrop url={backdrop} blurUp={false} />
           ) : (
-            <div className="absolute inset-0 animate-pulse bg-white/[0.02]" />
+            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.035] via-transparent to-black/20" />
           )}
           {settings.detailTrailerAutoplay && trailerCandidate && (
             <DetailHeroTrailer candidateId={trailerCandidate} paused={trailerOpen} />
@@ -1049,7 +1042,7 @@ export function DetailView({
                   {tagline}
                 </p>
               )}
-              <TitlePlate title={title} logo={logo} loading={loading} />
+              <TitlePlate title={heroTitle} logo={logo} loading={!heroArt} />
               <div className="mt-6 flex flex-wrap items-center gap-3 text-[13px] font-medium text-ink-muted">
                 {year && (
                   <Pill
