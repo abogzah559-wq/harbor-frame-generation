@@ -1,0 +1,32 @@
+[package]
+name = "torrentplayer-net"
+description = "Network modes for TorrentPlayer: direct, SOCKS5 proxy, and WireGuard configs, with a kill switch."
+version = "0.3.3"
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+authors = ["The TorrentPlayer Contributors"]
+repository = "https://github.com/torrentplayer/torrentplayer"
+publish = false
+
+[features]
+test-util = []
+
+[dependencies]
+base64 = { version = "0.23" }
+getrandom = { version = "0.4" }
+dns-parser = { version = "0.8" }
+librqbit-upnp = { version = "9.0.1" }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "socks"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.145" }
+socket2 = { version = "0.6", features = ["all"] }
+subtle = { version = "2.6" }
+thiserror = { version = "2.0.17" }
+tokio = { version = "1.47", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-util = { version = "0.7.16", features = ["io"] }
+tokio-wireguard = { path = "../vendor/tokio-wireguard" }
+tracing = { version = "0.1.41" }
+ts-rs = { version = "12.0" }
+url = { version = "2.5" }
+zeroize = { version = "1.8" }

@@ -46,6 +46,12 @@ mdns-sd = "0.13"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 harbor-core = { path = "../harbor-core" }
 librqbit = { version = "=8.1.1", default-features = false, features = ["rust-tls"] }
+# Streaming-first torrent engine (seek-first scheduling, background queue,
+# SOCKS5 / WireGuard with a kill switch). See engine/README.md.
+torrentplayer-torrent = { path = "engine/torrentplayer-torrent" }
+torrentplayer-net = { path = "engine/torrentplayer-net" }
+torrentplayer-stream = { path = "engine/torrentplayer-stream" }
+torrentplayer-prioritize = { path = "engine/torrentplayer-prioritize" }
 url = "2"
 realfft = "3"
 
@@ -68,3 +74,9 @@ objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSView", "NSOpenGL",
 objc2-web-kit = { version = "0.3", features = ["WKWebView"] }
 core-foundation = "0.10"
 core-video = "0.4"
+
+[patch.crates-io]
+# The engine's DHT node and tracker client, vendored with its fixes (scoped
+# transports, Windows datagram errors, UDP socket opened on first use).
+librqbit-dht = { path = "engine/vendor/librqbit-dht" }
+librqbit-tracker-comms = { path = "engine/vendor/librqbit-tracker-comms" }

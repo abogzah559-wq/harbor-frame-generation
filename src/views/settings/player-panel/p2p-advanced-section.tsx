@@ -11,6 +11,7 @@ import {
   torrentEngineStatus,
 } from "@/lib/torrent/local-engine";
 import { Section, ToggleRow } from "../shared";
+import { FastEngineSection } from "./fast-engine-section";
 
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -122,6 +123,7 @@ export function P2PAdvancedSection() {
 
   return (
     <>
+      {isTauri && !strictRemote && <FastEngineSection />}
       <Section
         title={t("Stream cache")}
         subtitle={t("Downloaded peer-to-peer stream files are kept on disk so reopening a title resumes instantly instead of starting over. Control how long they stay and where they live.")}

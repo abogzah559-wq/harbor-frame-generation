@@ -1,0 +1,28 @@
+[package]
+name = "torrentplayer-swarm"
+description = "A streaming-first BitTorrent engine for TorrentPlayer: deadline scheduling, adaptive request queues, and cancel-on-seek."
+version = "0.3.3"
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+authors = ["The TorrentPlayer Contributors"]
+repository = "https://github.com/torrentplayer/torrentplayer"
+publish = false
+
+[dependencies]
+bytes = { version = "1.10" }
+futures-util = { version = "0.3.31", default-features = false, features = ["std"] }
+getrandom = { version = "0.4" }
+librqbit-core = { version = "9.0.1", default-features = false, features = ["sha1-ring"] }
+librqbit-dht = { version = "9.0.1" }
+librqbit-tracker-comms = { version = "9.0.1" }
+torrentplayer-net = { path = "../torrentplayer-net" }
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.145" }
+sha1 = { version = "0.11.0" }
+thiserror = { version = "2.0.17" }
+tokio = { version = "1.47", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-util = { version = "0.7.16", features = ["io"] }
+tracing = { version = "0.1.41" }
+url = { version = "2.5" }

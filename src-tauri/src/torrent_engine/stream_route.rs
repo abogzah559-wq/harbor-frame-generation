@@ -151,6 +151,20 @@ async fn stream_file(
     file_id: usize,
     headers: &HeaderMap,
 ) -> Response {
+    if let Some(fast) = super::swarm::running().filter(|s| s.has(hash)) {
+        let media = match fast.media(hash, file_id) {
+            Some(m) => Some(m),
+            // another file of the same torrent (LAN / cast clients): play it
+            None => match fast.select(hash, file_id).await {
+                Ok(()) => fast.media(hash, file_id),
+                Err(e) => return (StatusCode::NOT_FOUND, e).into_response(),
+            },
+        };
+        return match media {
+            Some(m) => serve_media(m, headers).await,
+            None => (StatusCode::NOT_FOUND, "no file").into_response(),
+        };
+    }
     let Ok(id) = TorrentIdOrHash::parse(hash) else {
         return (StatusCode::BAD_REQUEST, "bad hash").into_response();
     };
@@ -202,6 +216,48 @@ async fn stream_file(
         stream.take(to_take),
         65536,
     ));
+    (status, out, body).into_response()
+}
+
+/// Serves a file of the fast engine with HTTP range support. Reads ask the
+/// engine for exactly the bytes requested first, so a seek lands quickly.
+async fn serve_media(media: Arc<dyn torrentplayer_stream::MediaSource>, headers: &HeaderMap) -> Response {
+    let len = media.byte_len();
+    let parsed = headers
+        .get(header::RANGE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(parse_range);
+    let (status, start, end) = match parsed {
+        Some((s, e_opt)) => {
+            let e = e_opt.map(|x| x + 1).unwrap_or(len).min(len);
+            if e <= s {
+                return (StatusCode::RANGE_NOT_SATISFIABLE, "range not satisfiable").into_response();
+            }
+            (StatusCode::PARTIAL_CONTENT, s, e)
+        }
+        None => (StatusCode::OK, 0u64, len),
+    };
+    let mut reader = match media.open().await {
+        Ok(r) => r,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("open failed: {e}")).into_response(),
+    };
+    if start > 0 && reader.seek(SeekFrom::Start(start)).await.is_err() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, "seek failed").into_response();
+    }
+    let to_take = end - start;
+    let mut out = HeaderMap::new();
+    out.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+    out.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str(media.content_type()).unwrap_or(HeaderValue::from_static("application/octet-stream")),
+    );
+    out.insert(header::CONTENT_LENGTH, HeaderValue::from(to_take));
+    if status == StatusCode::PARTIAL_CONTENT {
+        if let Ok(v) = HeaderValue::from_str(&format!("bytes {}-{}/{}", start, end - 1, len)) {
+            out.insert(header::CONTENT_RANGE, v);
+        }
+    }
+    let body = Body::from_stream(tokio_util::io::ReaderStream::with_capacity(reader.take(to_take), 65536));
     (status, out, body).into_response()
 }
 

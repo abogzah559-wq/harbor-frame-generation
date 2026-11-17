@@ -4,28 +4,60 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 /// Engine files that are never swept.
-const KEEP: &[&str] = &["dht.json", "engine.json", "session.json", "session.json.tmp"];
+const KEEP: &[&str] = &["dht.json", "engine.json", "session.json", "session.json.tmp", "swarm.json"];
 
-/// Deletes cached torrent data whose last write is older than
-/// `retention_hours`, then trims the oldest entries to `max_gb`.
-///
-/// `protect` holds top-level names that belong to torrents still open in
-/// the engine (being watched or queued); they are never removed here.
-///
-/// Age comes from the newest modification time found anywhere inside an
-/// entry: on Windows a folder's own time does not change when a file deep
-/// inside it is written, so the folder time alone can be far off.
-pub fn run(dir: &Path, retention_hours: u64, max_gb: u64, protect: &HashSet<String>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
-    let now = SystemTime::now();
-    let max_age = Duration::from_secs(retention_hours.saturating_mul(3600));
-    let mut kept: Vec<(PathBuf, SystemTime, u64)> = Vec::new();
+/// Folders that hold one sub-folder per torrent (the fast engine's piece
+/// caches and its classic fallback); their children are swept one by one.
+const CONTAINERS: &[&str] = &["torrentplayer-swarm", "librqbit"];
+
+/// Files a container keeps for itself (routing tables, its session).
+const CONTAINER_KEEP: &[&str] = &["swarm.json", "session.json", "dht.json"];
+
+fn candidates(dir: &Path) -> Vec<(PathBuf, String)> {
+    let mut out = Vec::new();
+    let Ok(entries) = fs::read_dir(dir) else { return out };
     for entry in entries.flatten() {
         let path = entry.path();
         let Some(name) = path.file_name().and_then(|n| n.to_str()).map(str::to_string) else {
             continue;
         };
-        if KEEP.contains(&name.as_str()) || protect.contains(&name) {
+        if KEEP.contains(&name.as_str()) {
+            continue;
+        }
+        if CONTAINERS.contains(&name.as_str()) && path.is_dir() {
+            if let Ok(children) = fs::read_dir(&path) {
+                for child in children.flatten() {
+                    let cpath = child.path();
+                    let Some(cname) = cpath.file_name().and_then(|n| n.to_str()).map(str::to_string) else {
+                        continue;
+                    };
+                    if !CONTAINER_KEEP.contains(&cname.as_str()) {
+                        out.push((cpath, cname.to_ascii_lowercase()));
+                    }
+                }
+            }
+            continue;
+        }
+        out.push((path, name));
+    }
+    out
+}
+
+/// Deletes cached torrent data whose last write is older than
+/// `retention_hours`, then trims the oldest entries to `max_gb`.
+///
+/// `protect` holds the names (top-level, or lower-case info hashes inside
+/// the fast engine's folders) of torrents still open; they are never removed.
+///
+/// Age comes from the newest modification time found anywhere inside an
+/// entry: on Windows a folder's own time does not change when a file deep
+/// inside it is written, so the folder time alone can be far off.
+pub fn run(dir: &Path, retention_hours: u64, max_gb: u64, protect: &HashSet<String>) {
+    let now = SystemTime::now();
+    let max_age = Duration::from_secs(retention_hours.saturating_mul(3600));
+    let mut kept: Vec<(PathBuf, SystemTime, u64)> = Vec::new();
+    for (path, name) in candidates(dir) {
+        if protect.contains(&name) {
             continue;
         }
         let modified = newest_mtime(&path);

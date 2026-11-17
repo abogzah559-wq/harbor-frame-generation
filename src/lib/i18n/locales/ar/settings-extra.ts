@@ -859,6 +859,28 @@ const settingsExtra: Record<string, string> = {
   "{tag} is ready to install": "{tag} جاهز للتثبيت",
   "The original developers are no longer working on Harbor. This edition is made and maintained by 3zT.": "توقف المطورون الأصليون عن العمل على هاربور. هذه النسخة من تطوير وصيانة 3zT.",
   "Checking": "جارٍ التحقق",
+  "Fast streaming engine": "محرك البث السريع",
+  "Plays torrents the way a streaming service does: the moment you skip to is downloaded first, the next episode of a season pack downloads in the background, and the connection can go through a VPN.":
+    "يشغّل التورنت مثل منصات البث: اللحظة اللي تقدّم لها تتحمّل أول، والحلقة الجاية من نفس الموسم تتحمّل بالخلفية، والاتصال ممكن يمر عبر VPN.",
+  "Use the fast engine": "استخدم المحرك السريع",
+  "Starts and seeks faster, especially on large and 4K files. Frame generation works the same. Turn off to use the classic engine.":
+    "تشغيل وتقديم أسرع، خصوصاً مع الملفات الكبيرة والـ4K. توليد الفريمات يشتغل مثل ما هو. طفّه إذا تبي المحرك الكلاسيكي.",
+  "Connection protection": "حماية الاتصال",
+  "With SOCKS5 or WireGuard, torrent traffic only leaves through the proxy or tunnel. If it drops, the kill switch stops all torrent traffic instead of using your normal connection.":
+    "مع SOCKS5 أو WireGuard، اتصال التورنت يطلع من البروكسي أو النفق بس. لو انقطع، مفتاح القطع يوقف كل اتصال التورنت بدل ما يستخدم اتصالك العادي.",
+  "Direct": "مباشر",
+  "SOCKS5 proxy": "بروكسي SOCKS5",
+  "WireGuard": "WireGuard",
+  "Proxy host": "عنوان البروكسي",
+  "Port": "المنفذ",
+  "Username (optional)": "اسم المستخدم (اختياري)",
+  "Paste your WireGuard .conf file here ([Interface] and [Peer])": "الصق ملف WireGuard ‏(.conf) هنا ([Interface] و[Peer])",
+  "Save connection": "احفظ الاتصال",
+  "Starts with the next torrent you play": "يشتغل مع أول تورنت تشغّله",
+  "Protected: traffic goes through {endpoint}": "محمي: الاتصال يمر عبر {endpoint}",
+  "Direct connection": "اتصال مباشر",
+  "Connecting… traffic waits until the connection is verified": "يتصل… الاتصال ينتظر لين يتأكد إن الحماية شغالة",
+  "Blocked by the kill switch: {reason}": "موقوف بمفتاح القطع: {reason}",
 };
 
 export default settingsExtra;

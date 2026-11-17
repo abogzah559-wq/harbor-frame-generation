@@ -110,6 +110,60 @@ export async function torrentEngineRemove(infoHash: string, deleteFiles: boolean
   );
 }
 
+export type FastEngineNet = {
+  mode: "direct" | "socks5" | "wireguard";
+  socksHost: string;
+  socksPort: number;
+  socksUser: string;
+  socksPass: string;
+  wireguardConf: string;
+  allowIpv6: boolean;
+};
+
+export type FastEngineState = {
+  enabled: boolean;
+  running: boolean;
+  net: FastEngineNet;
+  status: {
+    mode: string;
+    state: { kind: string; reason?: string };
+    endpoint: string | null;
+    trafficAllowed: boolean;
+    killSwitchEngaged: boolean;
+  } | null;
+};
+
+export async function fastEngineGet(): Promise<FastEngineState | null> {
+  if (!isTauri) return null;
+  try {
+    return await invoke<FastEngineState>("torrent_engine_fast_get");
+  } catch {
+    return null;
+  }
+}
+
+export async function fastEngineSet(enabled: boolean, net: FastEngineNet): Promise<FastEngineState> {
+  return invoke<FastEngineState>("torrent_engine_fast_set", { enabled, net });
+}
+
+/** Tells the fast engine where the player is, so it fetches what comes next
+ *  (and the exact spot after a seek) first. */
+export function torrentEnginePlayhead(infoHash: string, fileIdx: number, position: number, duration: number | null): void {
+  if (!isTauri) return;
+  void invoke("torrent_engine_playhead", {
+    infoHash,
+    fileIdx,
+    position,
+    duration: duration && duration > 0 ? duration : null,
+  }).catch(() => {});
+}
+
+/** `{hash, file}` of a local engine stream URL (`…/stream/<hash>/<file>`). */
+export function parseEngineStreamUrl(url: string | null | undefined): { infoHash: string; fileIdx: number } | null {
+  const m = url?.match(/\/stream\/([0-9a-fA-F]{40})\/(\d+)(?:[/?#]|$)/);
+  return m ? { infoHash: m[1].toLowerCase(), fileIdx: Number(m[2]) } : null;
+}
+
 const pendingRemovals = new Map<string, number>();
 
 export function scheduleTorrentRemoval(infoHash: string, deleteFiles = false, delayMs = 1200): void {

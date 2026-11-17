@@ -1,0 +1,12 @@
+[package]
+name = "torrentplayer-prioritize"
+description = "Pure, platform-independent piece prioritization logic for TorrentPlayer."
+version = "0.3.3"
+edition = "2024"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+authors = ["The TorrentPlayer Contributors"]
+repository = "https://github.com/torrentplayer/torrentplayer"
+publish = false
+
+[dependencies]

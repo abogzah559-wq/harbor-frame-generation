@@ -42,6 +42,7 @@ import { useMpvEmbed } from "./player/hooks/use-mpv-embed";
 import { usePlayerBridge } from "./player/hooks/use-player-bridge";
 import { useTextSync } from "./player/hooks/use-text-sync";
 import { resetAiTranslate, TRANSLATE_EVENT, translateCurrentSubtitle } from "@/lib/subtitles/ai-translate";
+import { parseEngineStreamUrl, torrentEnginePlayhead } from "@/lib/torrent/local-engine";
 import { useT } from "@/lib/i18n";
 import { useEpisodeNavigation } from "./player/hooks/use-episode-navigation";
 import { useAbLoop } from "./player/hooks/use-ab-loop";
@@ -535,6 +536,29 @@ export function PlayerView({ src }: { src: PlayerSrc }) {
     window.addEventListener(TRANSLATE_EVENT, onTranslate);
     return () => window.removeEventListener(TRANSLATE_EVENT, onTranslate);
   }, [settings.geminiKey, src.url, src.headers, src.meta.id, src.meta.name, season, episode]);
+
+  // Fast torrent engine: report the playhead once a second (and right
+  // after a seek) so the part about to play is always fetched first.
+  const enginePlayhead = useMemo(() => parseEngineStreamUrl(src.url), [src.url]);
+  const lastReportedRef = useRef(-1);
+  useEffect(() => {
+    if (!enginePlayhead) return;
+    const report = () => {
+      const s = snapRef.current;
+      if (s.status === "idle" || s.status === "error") return;
+      lastReportedRef.current = s.positionSec;
+      torrentEnginePlayhead(enginePlayhead.infoHash, enginePlayhead.fileIdx, s.positionSec, s.durationSec || null);
+    };
+    report();
+    const timer = window.setInterval(report, 1000);
+    return () => window.clearInterval(timer);
+  }, [enginePlayhead]);
+  useEffect(() => {
+    if (!enginePlayhead) return;
+    if (Math.abs(snap.positionSec - lastReportedRef.current) < 3) return;
+    lastReportedRef.current = snap.positionSec;
+    torrentEnginePlayhead(enginePlayhead.infoHash, enginePlayhead.fileIdx, snap.positionSec, snap.durationSec || null);
+  }, [enginePlayhead, snap.positionSec, snap.durationSec]);
 
   // Automatic Arabic: with a Gemini key and the option on, a title that has
   // no Arabic subtitle gets its subtitle translated once playback is under

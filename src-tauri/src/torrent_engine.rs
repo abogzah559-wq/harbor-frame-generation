@@ -3,6 +3,7 @@ mod dht_boot;
 mod netcheck;
 mod selftest;
 mod stream_route;
+mod swarm;
 mod trackers;
 
 use std::collections::HashSet;
@@ -72,10 +73,13 @@ fn spawn_cache_sweeper(app: AppHandle) -> tokio::task::JoinHandle<()> {
 /// Top-level cache names used by torrents open in the engine: the torrent's
 /// folder (or single file) and its resume files. The sweeper leaves them be.
 fn open_torrent_names() -> HashSet<String> {
+    let mut names: HashSet<String> = swarm::running()
+        .map(|s| s.open_hashes().into_iter().collect())
+        .unwrap_or_default();
     let Some(session) = current_session() else {
-        return HashSet::new();
+        return names;
     };
-    session.with_torrents(|it| {
+    names.extend(session.with_torrents(|it| {
         let mut out = HashSet::new();
         for (_, t) in it {
             if let Some(name) = t.name() {
@@ -86,7 +90,8 @@ fn open_torrent_names() -> HashSet<String> {
             out.insert(format!("{hash}.torrent"));
         }
         out
-    })
+    }));
+    names
 }
 
 fn current_session() -> Option<Arc<Session>> {
@@ -171,11 +176,34 @@ async fn new_session(
     .map_err(|e| format!("{e:#}"))
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Default, Clone)]
 struct EngineConfig {
     dir: Option<String>,
     retention_hours: Option<u64>,
     max_gb: Option<u64>,
+    /// The streaming-first engine (seek-first, queue, VPN). On unless turned off.
+    #[serde(default)]
+    fast_engine: Option<bool>,
+    #[serde(default)]
+    net: Option<swarm::NetSettings>,
+}
+
+fn write_config(app: &AppHandle, cfg: &EngineConfig) -> Result<(), String> {
+    let p = config_path(app).ok_or_else(|| "no config path".to_string())?;
+    if let Some(parent) = p.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    std::fs::write(&p, serde_json::to_string(cfg).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+}
+
+/// The fast engine, started on first use, unless turned off in Settings.
+async fn fast_engine(app: &AppHandle) -> Option<Arc<swarm::Swarm>> {
+    let cfg = read_config(app);
+    if cfg.fast_engine == Some(false) {
+        return None;
+    }
+    let dir = engine_dir(app, &cfg).ok()?;
+    swarm::get(dir, &cfg.net.unwrap_or_default()).await
 }
 
 fn config_path(app: &AppHandle) -> Option<std::path::PathBuf> {
@@ -334,6 +362,27 @@ pub async fn torrent_engine_add(
     file_idx: Option<usize>,
 ) -> Result<AddResult, String> {
     let session = ensure_session(&app).await?;
+    if let Some(fast) = fast_engine(&app).await {
+        match fast.add(&magnet, &trackers).await {
+            Ok((info_hash, files)) => {
+                let narrow = file_idx
+                    .filter(|i| files.iter().any(|f| f.idx == *i))
+                    .or_else(|| files.iter().max_by_key(|f| f.length).map(|f| f.idx));
+                if let Some(idx) = narrow {
+                    if let Err(e) = fast.select(&info_hash, idx).await {
+                        eprintln!("[torrent-engine] fast engine select failed: {e}");
+                    }
+                }
+                let port = current_port().ok_or_else(|| "engine port unavailable".to_string())?;
+                return Ok(AddResult {
+                    info_hash,
+                    files,
+                    stream_base: format!("http://127.0.0.1:{port}/stream"),
+                });
+            }
+            Err(e) => eprintln!("[torrent-engine] fast engine add failed, using the classic one: {e}"),
+        }
+    }
     let seed = match current_side_dht() {
         Some(d) => dht_boot::seed_peers(&d, magnet.as_str(), 40, Duration::from_secs(3)).await,
         None => Vec::new(),
@@ -410,6 +459,13 @@ pub(crate) async fn ensure_added(
     trackers: Vec<String>,
     file_idx: Option<usize>,
 ) -> Result<(String, Vec<EngineFile>), String> {
+    if let Some(fast) = swarm::running().filter(|s| s.has(hash)) {
+        let (info_hash, files) = fast.add(&build_magnet(hash), &trackers).await?;
+        if let Some(idx) = file_idx {
+            fast.select(&info_hash, idx).await?;
+        }
+        return Ok((info_hash, files));
+    }
     let session = current_session().ok_or_else(|| "engine not ready".to_string())?;
     let id = TorrentIdOrHash::parse(hash).map_err(|e| e.to_string())?;
     let handle = match session.get(id) {
@@ -516,6 +572,9 @@ pub fn stop_lan_server() {
 
 #[tauri::command]
 pub async fn torrent_engine_select(info_hash: String, file_idx: usize) -> Result<(), String> {
+    if let Some(fast) = swarm::running().filter(|s| s.has(&info_hash)) {
+        return fast.select(&info_hash, file_idx).await;
+    }
     let session = current_session().ok_or_else(|| "engine not ready".to_string())?;
     let id = TorrentIdOrHash::parse(&info_hash).map_err(|e| e.to_string())?;
     let handle = session.get(id).ok_or_else(|| "no torrent".to_string())?;
@@ -530,6 +589,23 @@ pub async fn torrent_engine_stats(
     info_hash: String,
     file_idx: Option<usize>,
 ) -> Result<TorrentEngineStats, String> {
+    if let Some(fast) = swarm::running().filter(|s| s.has(&info_hash)) {
+        let (peers, speed, downloaded, progress, len, finished, state) = fast
+            .stats(&info_hash, file_idx)
+            .await
+            .ok_or_else(|| "no torrent".to_string())?;
+        return Ok(TorrentEngineStats {
+            peers,
+            unchoked: peers,
+            downloaded,
+            download_speed: speed,
+            stream_progress: progress,
+            stream_len: len,
+            peer_search_running: true,
+            finished,
+            state,
+        });
+    }
     let session = current_session().ok_or_else(|| "engine not ready".to_string())?;
     let id = TorrentIdOrHash::parse(&info_hash).map_err(|e| e.to_string())?;
     let handle = session.get(id).ok_or_else(|| "no torrent".to_string())?;
@@ -568,7 +644,20 @@ pub async fn torrent_engine_stats(
 }
 
 #[tauri::command]
-pub async fn torrent_engine_remove(info_hash: String, delete_files: bool) -> Result<(), String> {
+pub async fn torrent_engine_remove(app: AppHandle, info_hash: String, delete_files: bool) -> Result<(), String> {
+    if let Some(fast) = swarm::running() {
+        if fast.remove(&info_hash).await {
+            if delete_files {
+                // watched to the end with "delete after watching", or no retention
+                let cfg = read_config(&app);
+                if let Ok(dir) = engine_dir(&app, &cfg) {
+                    let data = dir.join("torrentplayer-swarm").join(info_hash.to_ascii_lowercase());
+                    let _ = tokio::task::spawn_blocking(move || std::fs::remove_dir_all(data)).await;
+                }
+            }
+            return Ok(());
+        }
+    }
     let session = current_session().ok_or_else(|| "engine not ready".to_string())?;
     let id = TorrentIdOrHash::parse(&info_hash).map_err(|e| e.to_string())?;
     session
@@ -589,6 +678,7 @@ pub async fn torrent_engine_restart(app: AppHandle) -> Result<EngineStatusDto, S
 #[tauri::command]
 pub async fn torrent_engine_hard_reset(app: AppHandle) -> Result<EngineStatusDto, String> {
     stop();
+    swarm::shutdown().await;
     tokio::time::sleep(Duration::from_millis(800)).await;
     let cfg = read_config(&app);
     if let Ok(dir) = engine_dir(&app, &cfg) {
@@ -607,19 +697,14 @@ pub async fn torrent_engine_set_options(
     max_gb: u64,
     restart: bool,
 ) -> Result<EngineStatusDto, String> {
-    let cfg = EngineConfig {
-        dir: dir.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()),
-        retention_hours: Some(retention_hours),
-        max_gb: Some(max_gb),
-    };
-    if let Some(p) = config_path(&app) {
-        if let Some(parent) = p.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        std::fs::write(&p, serde_json::to_string(&cfg).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
-    }
+    // keep the other saved settings (network, fast engine)
+    let mut cfg = read_config(&app);
+    cfg.dir = dir.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    cfg.retention_hours = Some(retention_hours);
+    cfg.max_gb = Some(max_gb);
+    write_config(&app, &cfg)?;
     if restart {
+        swarm::shutdown().await;
         stop();
         tokio::time::sleep(Duration::from_millis(600)).await;
         init(app).await?;
@@ -630,4 +715,67 @@ pub async fn torrent_engine_set_options(
 #[tauri::command]
 pub async fn torrent_engine_selftest(app: AppHandle) -> selftest::SelfTestResult {
     selftest::run(app).await
+}
+
+/// The player's position, so the fast engine fetches what is needed next.
+#[tauri::command]
+pub async fn torrent_engine_playhead(
+    info_hash: String,
+    file_idx: usize,
+    position: f64,
+    duration: Option<f64>,
+) -> Result<(), String> {
+    if let Some(fast) = swarm::running().filter(|s| s.has(&info_hash)) {
+        fast.playhead(&info_hash, file_idx, position, duration).await;
+    }
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FastEngineState {
+    enabled: bool,
+    running: bool,
+    net: swarm::NetSettings,
+    status: Option<torrentplayer_net::NetworkStatus>,
+}
+
+fn fast_state(app: &AppHandle) -> FastEngineState {
+    let cfg = read_config(app);
+    let running = swarm::running();
+    FastEngineState {
+        enabled: cfg.fast_engine != Some(false),
+        running: running.is_some(),
+        net: cfg.net.unwrap_or_default(),
+        status: running.map(|s| s.network_status()),
+    }
+}
+
+#[tauri::command]
+pub async fn torrent_engine_fast_get(app: AppHandle) -> FastEngineState {
+    fast_state(&app)
+}
+
+/// Turns the fast engine on or off and saves its network settings. A new
+/// network mode applies at once; in SOCKS5 and WireGuard modes nothing is
+/// sent unless the proxy or tunnel works (kill switch).
+#[tauri::command]
+pub async fn torrent_engine_fast_set(
+    app: AppHandle,
+    enabled: bool,
+    net: swarm::NetSettings,
+) -> Result<FastEngineState, String> {
+    let mut cfg = read_config(&app);
+    let was_enabled = cfg.fast_engine != Some(false);
+    cfg.fast_engine = Some(enabled);
+    cfg.net = Some(net.clone());
+    write_config(&app, &cfg)?;
+    if !enabled && was_enabled {
+        swarm::shutdown().await;
+    } else if let Some(fast) = swarm::running() {
+        fast.apply_network(&net).await?;
+    } else if enabled {
+        let _ = fast_engine(&app).await;
+    }
+    Ok(fast_state(&app))
 }
