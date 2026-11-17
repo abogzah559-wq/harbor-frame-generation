@@ -1,30 +1,39 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-const KEEP: &[&str] = &["dht.json", "engine.json"];
+/// Engine files that are never swept.
+const KEEP: &[&str] = &["dht.json", "engine.json", "session.json", "session.json.tmp"];
 
-pub fn run(dir: &Path, retention_hours: u64, max_gb: u64) {
+/// Deletes cached torrent data whose last write is older than
+/// `retention_hours`, then trims the oldest entries to `max_gb`.
+///
+/// `protect` holds top-level names that belong to torrents still open in
+/// the engine (being watched or queued); they are never removed here.
+///
+/// Age comes from the newest modification time found anywhere inside an
+/// entry: on Windows a folder's own time does not change when a file deep
+/// inside it is written, so the folder time alone can be far off.
+pub fn run(dir: &Path, retention_hours: u64, max_gb: u64, protect: &HashSet<String>) {
     let Ok(entries) = fs::read_dir(dir) else { return };
     let now = SystemTime::now();
     let max_age = Duration::from_secs(retention_hours.saturating_mul(3600));
     let mut kept: Vec<(PathBuf, SystemTime, u64)> = Vec::new();
     for entry in entries.flatten() {
         let path = entry.path();
-        let keep_name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(|n| KEEP.contains(&n))
-            .unwrap_or(false);
-        if keep_name {
+        let Some(name) = path.file_name().and_then(|n| n.to_str()).map(str::to_string) else {
+            continue;
+        };
+        if KEEP.contains(&name.as_str()) || protect.contains(&name) {
             continue;
         }
-        let modified = entry.metadata().and_then(|m| m.modified()).ok();
+        let modified = newest_mtime(&path);
         let expired = if retention_hours == 0 {
             true
         } else {
             match modified {
-                Some(m) => now.duration_since(m).map(|age| age >= max_age).unwrap_or(true),
+                Some(m) => now.duration_since(m).map(|age| age >= max_age).unwrap_or(false),
                 None => true,
             }
         };
@@ -38,6 +47,26 @@ pub fn run(dir: &Path, retention_hours: u64, max_gb: u64) {
         }
     }
     enforce_size_cap(kept, max_gb);
+}
+
+/// Latest modification time of a file, or of anything inside a folder.
+fn newest_mtime(path: &Path) -> Option<SystemTime> {
+    let meta = fs::symlink_metadata(path).ok()?;
+    let own = meta.modified().ok();
+    if !meta.is_dir() {
+        return own;
+    }
+    let mut newest = own;
+    if let Ok(entries) = fs::read_dir(path) {
+        for e in entries.flatten() {
+            if let Some(t) = newest_mtime(&e.path()) {
+                if newest.map_or(true, |n| t > n) {
+                    newest = Some(t);
+                }
+            }
+        }
+    }
+    newest
 }
 
 fn enforce_size_cap(mut kept: Vec<(PathBuf, SystemTime, u64)>, max_gb: u64) {

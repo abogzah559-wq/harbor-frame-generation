@@ -63,8 +63,29 @@ fn spawn_cache_sweeper(app: AppHandle) -> tokio::task::JoinHandle<()> {
             let Ok(dir) = engine_dir(&app, &cfg) else { continue };
             let retention = cfg.retention_hours.unwrap_or(24);
             let max_gb = cfg.max_gb.unwrap_or(0);
-            let _ = tokio::task::spawn_blocking(move || cache_sweep::run(&dir, retention, max_gb)).await;
+            let protect = open_torrent_names();
+            let _ = tokio::task::spawn_blocking(move || cache_sweep::run(&dir, retention, max_gb, &protect)).await;
         }
+    })
+}
+
+/// Top-level cache names used by torrents open in the engine: the torrent's
+/// folder (or single file) and its resume files. The sweeper leaves them be.
+fn open_torrent_names() -> HashSet<String> {
+    let Some(session) = current_session() else {
+        return HashSet::new();
+    };
+    session.with_torrents(|it| {
+        let mut out = HashSet::new();
+        for (_, t) in it {
+            if let Some(name) = t.name() {
+                out.insert(name);
+            }
+            let hash = t.info_hash().as_string();
+            out.insert(format!("{hash}.bitv"));
+            out.insert(format!("{hash}.torrent"));
+        }
+        out
     })
 }
 
@@ -183,7 +204,7 @@ async fn init(app: AppHandle) -> Result<(), String> {
     let cfg = read_config(&app);
     let dir = engine_dir(&app, &cfg)?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    cache_sweep::run(&dir, cfg.retention_hours.unwrap_or(24), cfg.max_gb.unwrap_or(0));
+    cache_sweep::run(&dir, cfg.retention_hours.unwrap_or(24), cfg.max_gb.unwrap_or(0), &HashSet::new());
     let (session, dht_tier) = match new_session(&dir, true, true, true).await {
         Ok(s) => (s, 1u8),
         Err(e1) => {
@@ -203,6 +224,16 @@ async fn init(app: AppHandle) -> Result<(), String> {
             }
         }
     };
+    // Torrents are added on demand when something plays. Ones restored from
+    // the last run (Harbor closed mid-episode) would otherwise keep
+    // downloading in the background and keep their files fresh forever, so
+    // the cache would never expire. Their files stay for the sweeper.
+    let restored = session.with_torrents(|it| it.map(|(id, _)| id).collect::<Vec<_>>());
+    for id in restored {
+        if let Err(e) = session.delete(TorrentIdOrHash::Id(id), false).await {
+            eprintln!("[torrent-engine] could not drop restored torrent {id}: {e:#}");
+        }
+    }
     let side_dht = dht_boot::build().await;
     let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
         .await
