@@ -116,10 +116,30 @@ jobs:
           cd src-tauri/binaries
           T=x86_64-pc-windows-msvc
           curl -L "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -o "yt-dlp-$T.exe"
-          curl -L "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -o ffmpeg.zip
-          unzip -j ffmpeg.zip "*/bin/ffmpeg.exe" "*/bin/ffprobe.exe"
-          mv ffmpeg.exe "ffmpeg-$T.exe"
-          mv ffprobe.exe "ffprobe-$T.exe"
+          # The "shared" build: ffmpeg.exe and ffprobe.exe are small and share
+          # one set of DLLs, instead of two ~170 MB static copies. This keeps
+          # the installer (and every update download) much smaller.
+          curl -L "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip" -o ffmpeg.zip
+          mkdir -p ffx ffmpeg-deps
+          unzip -q ffmpeg.zip -d ffx
+          bin="$(dirname "$(find ffx -name ffmpeg.exe | head -1)")"
+          cp "$bin/ffmpeg.exe" "ffmpeg-$T.exe"
+          cp "$bin/ffprobe.exe" "ffprobe-$T.exe"
+          cp "$bin"/*.dll ffmpeg-deps/
+          ls -la ffmpeg-deps
+          rm -rf ffx ffmpeg.zip
+          cd ../..
+          python - <<'PY'
+          import json, os
+          p = "src-tauri/tauri.windows.conf.json"
+          c = json.load(open(p))
+          r = c["bundle"]["resources"]
+          for f in sorted(os.listdir("src-tauri/binaries/ffmpeg-deps")):
+              if f in r.values():
+                  continue
+              r["binaries/ffmpeg-deps/" + f] = f
+          json.dump(c, open(p, "w"), indent=2)
+          PY
 
       - name: Tauri build
         shell: bash

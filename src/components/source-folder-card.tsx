@@ -26,6 +26,10 @@ export function SourceFolderCard({
   const { openGrid } = useView();
   const { authKey } = useAuth();
   const [hover, setHover] = useState(false);
+  // The animated hover picture only replaces the cover once it has loaded;
+  // swapping before that showed a black card for a moment (a "blink").
+  const [gifReady, setGifReady] = useState(false);
+  const showGif = hover && !!folder.focusGifUrl && gifReady;
   const [loading, setLoading] = useState(false);
   const [errorAddon, setErrorAddon] = useState<string | null>(null);
   const [missingTmdbKey, setMissingTmdbKey] = useState<false | "tmdb" | "mdblist">(false);
@@ -83,7 +87,7 @@ export function SourceFolderCard({
                 style={folder.coverCrop ? { transform: "scale(1.8)", transformOrigin: "100% 0%" } : undefined}
                 className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
                   folder.coverCrop ? "" : "harbor-folder-art"
-                } ${hover && folder.focusGifUrl ? "opacity-0" : "opacity-100"}`}
+                } ${showGif ? "opacity-0" : "opacity-100"}`}
               />
             )}
             {folder.focusGifUrl && (
@@ -92,8 +96,9 @@ export function SourceFolderCard({
                 alt=""
                 loading="lazy"
                 draggable={false}
+                onLoad={() => setGifReady(true)}
                 className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-                  hover ? "opacity-100" : "opacity-0"
+                  showGif ? "opacity-100" : "opacity-0"
                 }`}
               />
             )}
