@@ -89,6 +89,8 @@ export function SubtitleOverlay({ text, startSec, scale = 1 }: Props) {
 }
 
 function fontFamilyFor(family: string | undefined): string {
+  const user = typeof document !== "undefined" ? document.documentElement.getAttribute("data-user-font") : null;
+  if (user && !family?.startsWith("custom:")) return `"${user}", "Inter", system-ui, sans-serif`;
   if (family?.startsWith("custom:")) {
     return `"harbor-font-${family.slice("custom:".length)}", "Inter", system-ui, sans-serif`;
   }

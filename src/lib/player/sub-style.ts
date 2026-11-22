@@ -15,7 +15,15 @@ function mpvColor(hex: string, opacity: number): string {
   return `#${a}${rgb}`;
 }
 
+/** Thmanyah (or whichever font applyUserFont found) when installed on this PC. */
+function installedUserFont(): string | null {
+  if (typeof document === "undefined") return null;
+  return document.documentElement.getAttribute("data-user-font");
+}
+
 function mpvFontFor(id: string): string {
+  const user = installedUserFont();
+  if (user && !id.startsWith("custom:")) return user;
   switch (id) {
     case "arabic":
       return "Noto Sans Arabic";

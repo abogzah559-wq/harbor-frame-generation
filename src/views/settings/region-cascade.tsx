@@ -17,10 +17,10 @@ export function applyLocaleCascade(
   next: LocaleProfile,
   current: Pick<Settings, "preferredLanguages" | "preferredSubLangs" | "preferredAudioLangs">,
 ): void {
-  setUiLanguage(next.uiLanguage === "ar" ? "ar" : "en");
+  setUiLanguage("ar");
   update({
-    uiLanguage: next.uiLanguage === "ar" ? "ar" : "en",
-    tmdbLanguage: next.tmdbLanguage,
+    uiLanguage: "ar",
+    tmdbLanguage: next.tmdbLanguage.toLowerCase().startsWith("ar") ? next.tmdbLanguage : "ar-SA",
     preferredLanguages: prepend(next.audioLanguage, current.preferredLanguages),
     preferredSubLangs: prepend(next.subtitleLanguage, current.preferredSubLangs),
     preferredAudioLangs: prepend(next.audioLanguage, current.preferredAudioLangs),

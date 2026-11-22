@@ -1,36 +1,14 @@
 import { Github } from "lucide-react";
 import { useState } from "react";
-import { Dropdown, type DropdownOption } from "@/components/dropdown";
 import { useSettings } from "@/lib/settings";
 import { useT } from "@/lib/i18n";
 import { openUrl } from "@/lib/window";
 import { Section, ToggleRow } from "./shared";
 import { SubtitleStylePanel } from "./player-panel";
 import { LanguagesPicker } from "./streaming-panel";
-import { DisplayLanguageSection } from "./language-panel/display-language-section";
 import { ALL_LANGUAGE_NAMES } from "@/lib/subtitles/language";
 
 const IMAGE_LANG_OPTIONS = ["Original", ...ALL_LANGUAGE_NAMES];
-
-const TMDB_LANGUAGES: DropdownOption[] = [
-  { value: "es-ES", label: "Español (España)" },
-  { value: "es-MX", label: "Español (Latinoamérica)" },
-  { value: "fr-FR", label: "Français" },
-  { value: "de-DE", label: "Deutsch" },
-  { value: "it-IT", label: "Italiano" },
-  { value: "pt-BR", label: "Português (Brasil)" },
-  { value: "pt-PT", label: "Português (Portugal)" },
-  { value: "ja-JP", label: "日本語" },
-  { value: "ko-KR", label: "한국어" },
-  { value: "zh-CN", label: "中文 (简体)" },
-  { value: "ar-SA", label: "العربية" },
-  { value: "tr-TR", label: "Türkçe" },
-  { value: "ru-RU", label: "Русский" },
-  { value: "hi-IN", label: "हिन्दी" },
-  { value: "pl-PL", label: "Polski" },
-  { value: "nl-NL", label: "Nederlands" },
-  { value: "uk-UA", label: "Українська" },
-];
 
 export function LanguagePanel() {
   const { settings, update } = useSettings();
@@ -38,7 +16,6 @@ export function LanguagePanel() {
   const [blockDraft, setBlockDraft] = useState(settings.trackBlockWords.join(", "));
   return (
     <>
-    <DisplayLanguageSection />
     <Section
       title={t("Subtitle languages")}
       subtitle={t("When playback starts, Harbor automatically finds and loads a subtitle in one of these languages, so you never have to search by hand. The first available match wins, so put your main language first.")}
@@ -105,32 +82,6 @@ export function LanguagePanel() {
       subtitle={t("How subtitles look during playback. Live preview below.")}
     >
       <SubtitleStylePanel />
-    </Section>
-
-    <Section
-      title={t("Metadata language")}
-      subtitle={t("Titles, overviews, and taglines from TMDB display in this language when a translation exists. Needs a TMDB key.")}
-    >
-      <Dropdown
-        value={settings.tmdbLanguage}
-        onChange={(v) => update({ tmdbLanguage: v })}
-        options={[{ value: "", label: t("English (default)") }, ...TMDB_LANGUAGES]}
-        className="w-full max-w-[340px]"
-      />
-      <ToggleRow
-        label={t("Translate titles")}
-        sub={t("On shows titles in your metadata language (English by default). Off keeps each title's original language, so anime and foreign films show their native names.")}
-        value={settings.translateTitles}
-        onChange={(v) => update({ translateTitles: v })}
-      />
-      {settings.tmdbLanguage !== "" && (
-        <ToggleRow
-          label={t("Translate overviews")}
-          sub={t("Translate plot descriptions and taglines into the language above. Turn off to keep English overviews.")}
-          value={settings.translateDescriptions}
-          onChange={(v) => update({ translateDescriptions: v })}
-        />
-      )}
     </Section>
 
     <Section

@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { isRtl, type UiLanguage } from "./languages";
 
-let current: UiLanguage = "en";
+let current: UiLanguage = "ar";
 const listeners = new Set<() => void>();
 
 function applyDocument(lang: UiLanguage) {
@@ -15,8 +15,9 @@ export function getUiLanguage(): UiLanguage {
   return current;
 }
 
-export function setUiLanguage(lang: UiLanguage): void {
-  const next: UiLanguage = lang === "ar" ? "ar" : lang === "pt" ? "pt" : "en";
+export function setUiLanguage(_lang: UiLanguage): void {
+  // Arabic only: whatever was saved before, the app runs in Arabic.
+  const next: UiLanguage = "ar";
   applyDocument(next);
   if (next === current) return;
   current = next;

@@ -2,6 +2,7 @@ import { Play, Star } from "lucide-react";
 import type { SearchResults } from "@/lib/search";
 import { ResultPoster } from "./result-poster";
 import { useLocalizedOverview } from "@/lib/use-localized-overview";
+import { useArabicMeta } from "@/lib/arabic-meta";
 import { useView } from "@/lib/view";
 
 export function TopMatch({
@@ -15,6 +16,7 @@ export function TopMatch({
   const yearTxt = match.meta.releaseInfo ?? "";
   const rating = match.voteAverage && match.voteAverage > 0 ? match.voteAverage.toFixed(1) : null;
   const synopsis = (useLocalizedOverview(match.meta) ?? "").trim();
+  const arTitle = useArabicMeta(match.meta).name;
 
   const handleOpen = () => {
     openMeta(match.meta);
@@ -59,7 +61,7 @@ export function TopMatch({
             className="mt-1.5 text-[clamp(32px,3.4vw,52px)] font-medium leading-[1.02] tracking-tight text-ink"
             style={{ fontFamily: "var(--font-display, 'Fraunces')" }}
           >
-            {match.meta.name}
+            {arTitle}
           </h2>
           <div className="mt-3 flex flex-wrap items-center gap-2.5 text-[14px] text-ink-muted">
             <span className="font-medium">{match.kind === "movie" ? "Movie" : "Series"}</span>

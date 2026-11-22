@@ -7,6 +7,7 @@ import { tmdbLogo, tmdbTrailerList, useTmdbImdbId } from "@/lib/providers/tmdb";
 import { useImdbRating } from "@/lib/imdb-rating";
 import { useSettings } from "@/lib/settings";
 import { useLocalizedOverview } from "@/lib/use-localized-overview";
+import { useArabicMeta } from "@/lib/arabic-meta";
 import { smartPlayEpisode } from "@/lib/smart-play";
 import { fetchTrailer, prefetchTrailer, trailerSrc, type TrailerInfo } from "@/lib/trailer";
 import { useT } from "@/lib/i18n";
@@ -207,6 +208,7 @@ function CinemaSlide({
   const { settings } = useSettings();
   const { openMeta, openPicker } = useView();
   const description = useLocalizedOverview(meta);
+  const arTitle = useArabicMeta(meta).name;
   const resolvedImdb = useTmdbImdbId(meta.id);
   const imdbRating = useImdbRating(meta, resolvedImdb);
   const [logo, setLogo] = useState<string | undefined>(meta.logo);
@@ -351,7 +353,7 @@ function CinemaSlide({
             {t(eyebrow)}
           </span>
           <CinemaTitlePlate
-            name={meta.name}
+            name={arTitle}
             logo={logo}
             loaded={logoLoaded}
             resolved={logoResolved}

@@ -7,6 +7,7 @@ import { searchAddonIndex } from "@/lib/search-addon-index";
 import { gatherCatalogAddons, type Addon } from "@/lib/addons";
 import { useAuth } from "@/lib/auth";
 import { useSettings } from "@/lib/settings";
+import { googleTranslate, hasArabic } from "@/lib/arabic-meta";
 
 type SearchState = {
   open: boolean;
@@ -97,15 +98,22 @@ export function SearchProvider({ children }: { children: ReactNode }) {
       setStatus("loading");
       const liveTv = liveTvAllowed ? searchLiveTvChannels(trimmed, settings.iptvPlaylists) : [];
       const tmdbPromise = searchAll(settings.tmdbKey, trimmed, { excludeGenres });
-      const animePromise = animeAllowed ? searchAnime(trimmed) : Promise.resolve([]);
+      // Arabic typed in: TMDB understands it, but Cinemeta, anime and most addon
+      // catalogs only know English names, so they get the English translation.
+      const latinQuery: Promise<string> = hasArabic(trimmed)
+        ? googleTranslate(trimmed, "en").then((en) => (en && !hasArabic(en) ? en : trimmed)).catch(() => trimmed)
+        : Promise.resolve(trimmed);
+      const animePromise = animeAllowed ? latinQuery.then((q) => searchAnime(q)) : Promise.resolve([]);
       const addonsP = ensureAddons();
-      const addonPromise = addonsP
-        .then((a) => searchAddonCatalogs(a, trimmed))
+      const addonPromise = Promise.all([addonsP, latinQuery])
+        .then(([a, q]) => searchAddonCatalogs(a, q))
         .catch(() => ({ movies: [], series: [] }));
-      const addonGroupsPromise = addonsP
-        .then((a) => searchAddonGroups(a, trimmed))
+      const addonGroupsPromise = Promise.all([addonsP, latinQuery])
+        .then(([a, q]) => searchAddonGroups(a, q))
         .catch(() => []);
-      const cinemetaPromise = searchCinemeta(trimmed).catch(() => ({ movies: [], series: [] }));
+      const cinemetaPromise = latinQuery
+        .then((q) => searchCinemeta(q))
+        .catch(() => ({ movies: [], series: [] }));
       let tmdbResult: Awaited<typeof tmdbPromise> | null = null;
       const acc = {
         anime: [] as Awaited<typeof animePromise>,

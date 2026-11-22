@@ -8,6 +8,7 @@ import { HdrOverlayApp } from "@/views/hdr-overlay-app";
 import { PipApp } from "@/views/pip";
 import "@/index.css";
 import { installDiagLog } from "@/lib/diag-log";
+import { applyUserFont } from "@/lib/user-font";
 
 function detectPipMode(): boolean {
   if (new URLSearchParams(window.location.search).get("pip") === "1") return true;
@@ -63,7 +64,9 @@ if (import.meta.env.DEV) console.log("[harbor] entry: pip =", isPip, "modal =", 
 if (import.meta.env.DEV && !isPip && !isModal && !isHdrOverlay) {
   void import("./lib/streams/__fixtures__/verify").then((m) => m.logVerificationReport());
 }
-void import("@/lib/user-font").then((m) => m.applyUserFont());
+// Synchronous on purpose: the Thmanyah check must be done before the first
+// render so the font prompt and subtitle font see the right answer.
+applyUserFont();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {isHdrOverlay ? <HdrOverlayApp /> : isModal ? <ModalOverlayApp /> : isPip ? <PipApp /> : <App />}
@@ -71,6 +74,8 @@ createRoot(document.getElementById("root")!).render(
 );
 
 if (!isPip && !isModal && !isHdrOverlay) {
+  // Arabic for text written straight into the markup, everywhere in the app.
+  void import("@/lib/i18n/dom-translate").then((m) => m.keepTranslated(document.body));
   void import("@/lib/smooth-wheel").then((m) => m.installSmoothWheel());
 }
 

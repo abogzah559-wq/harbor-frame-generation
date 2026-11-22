@@ -10,6 +10,7 @@ import { useImdbRating } from "@/lib/imdb-rating";
 import { tmdbImdbId, tmdbLogo, tmdbMovieImages, tmdbTrailerList, useTmdbImdbId } from "@/lib/providers/tmdb";
 import { useSettings } from "@/lib/settings";
 import { useLocalizedOverview } from "@/lib/use-localized-overview";
+import { useArabicMeta } from "@/lib/arabic-meta";
 import { fetchTrailer, prefetchTrailer, trailerSrc, type TrailerInfo } from "@/lib/trailer";
 import { useView } from "@/lib/view";
 import { usePageVisible } from "@/lib/visibility";
@@ -36,6 +37,7 @@ export const Hero = memo(function Hero({
   const { openMeta } = useView();
   const t = useT();
   const description = useLocalizedOverview(meta);
+  const arTitle = useArabicMeta(meta).name;
   const resolvedImdb = useTmdbImdbId(meta.id);
   const inWatchlist = useInWatchlist(meta.id, [resolvedImdb]);
   const [bgUrl, setBgUrl] = useState<string | undefined>(meta.background);
@@ -227,7 +229,7 @@ export const Hero = memo(function Hero({
               </span>
             </div>
           )}
-          <HeroTitlePlate name={meta.name} logo={logo} loaded={logoLoaded} resolved={logoResolved} onLoad={() => setLogoLoaded(true)} onError={() => { setLogo(undefined); setLogoResolved(true); }} />
+          <HeroTitlePlate name={arTitle} logo={logo} loaded={logoLoaded} resolved={logoResolved} onLoad={() => setLogoLoaded(true)} onError={() => { setLogo(undefined); setLogoResolved(true); }} />
           {description && (
             <p className="mt-6 line-clamp-3 max-w-xl text-[16px] leading-relaxed text-ink-muted">
               {description}

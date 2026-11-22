@@ -19,6 +19,7 @@ import sync from "./ar/sync";
 import together from "./ar/together";
 import boost from "./ar/boost";
 import settingsExtra from "./ar/settings-extra";
+import complete from "./ar/complete";
 
 const ar: Record<string, string> = {
   ...chrome,
@@ -42,6 +43,7 @@ const ar: Record<string, string> = {
   ...addons,
   ...boost,
   ...settingsExtra,
+  ...complete,
 };
 
 export default ar;

@@ -1,4 +1,5 @@
 import { Bookmark } from "lucide-react";
+import { useArabicMeta } from "@/lib/arabic-meta";
 import { memo, useMemo } from "react";
 import { awardSourceMeta, findTopAward, parseAwardYear } from "@/lib/anime-awards";
 import type { Meta } from "@/lib/cinemeta";
@@ -51,7 +52,8 @@ function WatchlistDot() {
   );
 }
 
-export const TopRankCard = memo(function TopRankCard({ meta, rank }: { meta: Meta; rank: number }) {
+export const TopRankCard = memo(function TopRankCard({ meta: rawMeta, rank }: { meta: Meta; rank: number }) {
+  const meta = useArabicMeta(rawMeta);
   const { openMeta } = useView();
   const { open: openContextMenu } = useContextMenu();
   const { settings } = useSettings();
@@ -119,7 +121,8 @@ export const TopRankCard = memo(function TopRankCard({ meta, rank }: { meta: Met
   );
 });
 
-export const AnimeRankCard = memo(function AnimeRankCard({ meta, rank }: { meta: Meta; rank: number }) {
+export const AnimeRankCard = memo(function AnimeRankCard({ meta: rawMeta, rank }: { meta: Meta; rank: number }) {
+  const meta = useArabicMeta(rawMeta);
   const { openMeta } = useView();
   const { open: openContextMenu } = useContextMenu();
   const { settings } = useSettings();

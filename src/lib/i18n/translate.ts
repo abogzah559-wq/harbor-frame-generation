@@ -1,12 +1,11 @@
 import en from "./locales/en";
 import ar from "./locales/ar";
-import pt from "./locales/pt";
 import { getUiLanguage, useUiLanguage } from "./store";
 import { isRtl, LANGUAGES, type UiLanguage } from "./languages";
 
 type Vars = Record<string, string | number>;
 
-const catalogs: Record<UiLanguage, Record<string, string>> = { en, ar, pt };
+const catalogs: Record<UiLanguage, Record<string, string>> = { en, ar, pt: ar };
 
 function interpolate(template: string, vars?: Vars): string {
   if (!vars) return template;

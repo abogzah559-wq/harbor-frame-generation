@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { BackToTop } from "@/components/back-to-top";
 import { HeroCarousel, type Slide } from "@/components/hero-carousel";
-import { TmdbNudge } from "@/components/nudge";
+import { ThmanyahNudge, TmdbNudge } from "@/components/nudge";
 import { Row, ScrollRootContext } from "@/components/row";
 import {
   applyHomeRowCustomization,
@@ -101,7 +101,7 @@ export function Home({ active = true }: { active?: boolean }) {
   const [heroMix, setHeroMix] = useState<{ general: Meta[]; anime: Meta[]; done?: boolean }>({ general: [], anime: [] });
   const [items, setItems] = useState<LibraryItem[]>([]);
   const cwVersion = useCwDismissVersion();
-  const [tmdbProvidedByAddon, setTmdbProvidedByAddon] = useState(false);
+  const [, setTmdbProvidedByAddon] = useState(false);
   const [addonsTick, setAddonsTick] = useState(0);
   const { isConnected: traktConnected } = useTrakt();
   const { isConnected: simklConnected } = useSimkl();
@@ -837,8 +837,9 @@ export function Home({ active = true }: { active?: boolean }) {
       <ScrollRootContext.Provider value={scrollEl}>
         <div data-tauri-drag-region className="relative flex flex-col gap-12">
           <div className="pointer-events-none absolute inset-x-0 top-0 z-30">
-            <div className="pointer-events-auto">
-              <TmdbNudge suppress={tmdbProvidedByAddon || settings.homeMode === "classic"} />
+            <div className="pointer-events-auto flex flex-col gap-3">
+              <TmdbNudge suppress={settings.homeMode === "classic"} />
+              <ThmanyahNudge />
             </div>
           </div>
           {editMode && (

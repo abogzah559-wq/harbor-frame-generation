@@ -1,3 +1,5 @@
+// Harbor is Arabic only. "en" stays in the type for old saved settings,
+// which are read and then switched to Arabic.
 export type UiLanguage = "en" | "ar" | "pt";
 
 export type LanguageOption = {
@@ -8,11 +10,9 @@ export type LanguageOption = {
 };
 
 export const LANGUAGES: LanguageOption[] = [
-  { code: "en", label: "English", nativeLabel: "English", rtl: false },
   { code: "ar", label: "Arabic", nativeLabel: "العربية", rtl: true },
-  { code: "pt", label: "Portuguese", nativeLabel: "Português", rtl: false },
 ];
 
-export function isRtl(lang: UiLanguage): boolean {
-  return lang === "ar";
+export function isRtl(_lang: UiLanguage): boolean {
+  return true;
 }

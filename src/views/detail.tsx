@@ -1,3 +1,4 @@
+import { hasArabic, useArabicMeta } from "@/lib/arabic-meta";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Check, HardDrive, Layers, Pencil, Play, Plus, RotateCcw, Star } from "lucide-react";
 import { animeDetails, franchiseTags, type FranchiseEntry } from "@/lib/providers/anime-detail";
@@ -666,7 +667,10 @@ export function DetailView({
     name: title || meta.name,
     poster: meta.poster ?? detail?.poster,
   };
-  const overview = detail?.overview ?? (meta.id.startsWith("tmdb:") ? "" : meta.description) ?? "";
+  const baseOverview = detail?.overview ?? (meta.id.startsWith("tmdb:") ? "" : meta.description) ?? "";
+  // Arabic name and story whatever the source (TMDB in Arabic, then free translation).
+  const arabic = useArabicMeta({ ...meta, name: title || meta.name, description: baseOverview || meta.description });
+  const overview = hasArabic(arabic.description) ? arabic.description! : baseOverview;
   const tagline = detail?.tagline ?? "";
   const liveLogo = loading ? detail?.logo : (detail?.logo || meta.logo);
   // Chosen once per title and kept: no swapping as later sources answer.
@@ -681,7 +685,7 @@ export function DetailView({
   const backdrop =
     heroArt?.backdrop || pinnedBackdropHi || detail?.backdrop || backdrops[0] || meta.background || (loading ? undefined : meta.poster) || undefined;
   const logo = heroArt ? heroArt.logo : liveLogo;
-  const heroTitle = heroArt?.title || title;
+  const heroTitle = hasArabic(arabic.name) ? arabic.name : heroArt?.title || title;
   const year = detail?.year ?? meta.releaseInfo;
   const releaseYearNum = parseAwardYear(year);
   const imdbRatingValue =

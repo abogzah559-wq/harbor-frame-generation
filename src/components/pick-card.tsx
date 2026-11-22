@@ -1,4 +1,5 @@
 import { Bookmark, Check, Popcorn, RefreshCcw } from "lucide-react";
+import { useArabicMeta } from "@/lib/arabic-meta";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { awardSourceMeta, findTopAward, parseAwardYear, type AwardWin } from "@/lib/anime-awards";
 import { meta as fetchMeta, narrowMediaType, type Meta } from "@/lib/cinemeta";
@@ -69,7 +70,7 @@ function getTitleFromKitsu(titles: { en?: string; en_jp?: string; ja_jp?: string
 }
 
 export const PickCard = memo(function PickCard({
-  meta,
+  meta: rawMeta,
   flagRerun = false,
   awardLookupName,
   kids = false,
@@ -79,6 +80,7 @@ export const PickCard = memo(function PickCard({
   awardLookupName?: string;
   kids?: boolean;
 }) {
+  const meta = useArabicMeta(rawMeta);
   const { openMeta, openPicker } = useView();
   const { open: openContextMenu } = useContextMenu();
   const { settings } = useSettings();

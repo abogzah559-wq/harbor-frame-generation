@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import type { Meta } from "@/lib/cinemeta";
 import { tmdbMetadataOverview } from "@/lib/providers/tmdb/tmdb-lite";
 import { useSettings } from "@/lib/settings";
+import { hasArabic, useArabicMeta } from "@/lib/arabic-meta";
 
 export function useLocalizedOverview(meta: Meta): string | undefined {
   const { settings } = useSettings();
+  const arabic = useArabicMeta(meta);
   const isTmdb = meta.id.startsWith("tmdb:");
   // Start from the text the item already carries, so a synopsis never pops
   // in late; swap in the localized one only when it differs.
@@ -24,5 +26,6 @@ export function useLocalizedOverview(meta: Meta): string | undefined {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta.id, settings.tmdbKey]);
-  return overview;
+  if (hasArabic(overview)) return overview;
+  return hasArabic(arabic.description) ? arabic.description : overview;
 }
