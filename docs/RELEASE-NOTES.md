@@ -1,8 +1,21 @@
-# Harbor Frame Generation boost-11
+# Harbor Frame Generation boost-12
 
 Harbor Frame Generation is a Windows build of [Harbor](https://github.com/harborstremio/harbor), a desktop app for watching films and series through Stremio addons, with **Boost** added to its built-in mpv player: AI frame generation, GPU upscaling and a GPU budget that keeps playback smooth. Everything runs inside Harbor; no other program is needed.
 
-## New in boost-11
+> **One-time manual step:** if you are on boost-11 or older, download and run the installer below once. Earlier versions could download an update but often failed to install it. From boost-12 on, updates install by themselves.
+
+## New in boost-12
+
+### Updates install for real
+- Downloaded updates now install reliably. Before, a hidden helper script was supposed to run the installer after Harbor closed, but it was often stopped first, so the same update downloaded again and again and never installed. The installer now runs directly when Harbor closes, or right away with **Restart now** (Harbor reopens when it is done).
+- An update that was already downloaded is reused instead of downloaded again, and old update files are removed.
+
+### Sources that actually play
+- **Torrentio is always included.** Setups with only a small regional torrent addon (for example Peerflix, which mostly returns Spanish releases with a handful of peers) stalled on "Connecting". Torrentio's well-seeded releases are now always searched as well.
+- **Message rows are hidden.** Some addons add rows that are messages, not videos ("searches disabled, use a debrid provider", "donation needed", "invalid key"). They no longer appear in the list.
+- **No more endless "Connecting".** A torrent that has not started after 45 seconds has no usable peers; Harbor now moves on instead of waiting forever.
+
+## boost-11
 
 ### Much faster updates
 - **Parallel download.** Updates now download in 8 parallel pieces instead of one stream. On many connections a single download from GitHub crawled along for half an hour or more.

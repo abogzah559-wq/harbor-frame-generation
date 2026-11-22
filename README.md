@@ -95,7 +95,7 @@ pnpm run setup:fonts
 pnpm tauri build
 ```
 
-Release installers are built by the `windows-build` workflow. Running it with a `release_tag` such as `boost-11` publishes a release with [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) as its notes. The `scene-cut-test` workflow runs the scene-cut detector in the same VapourSynth runtime Boost installs, on real video.
+Release installers are built by the `windows-build` workflow. Running it with a `release_tag` such as `boost-12` publishes a release with [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) as its notes. The `scene-cut-test` workflow runs the scene-cut detector in the same VapourSynth runtime Boost installs, on real video.
 
 | Part | Where |
 |---|---|

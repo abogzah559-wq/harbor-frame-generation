@@ -3,6 +3,7 @@ import { fetchInstalledAddons, fetchManifestAt, filterEnabled } from "@/lib/addo
 import {
   torboxAddonFor,
   torrentioAddonFor,
+  torrentioBareAddon,
   userAddons,
   withDebridKeys,
   type Addon,
@@ -96,6 +97,11 @@ export function useAddons(authKey: string | null, settings: Settings): {
         const tio = torrentioAddonFor(otherDebrid);
         list.unshift({ ...tio, manifest: { ...tio.manifest, id: "com.stremio.torrentio.debrid", name: "Torrentio Debrid" } });
       }
+      // Without any Torrentio, many setups only have small regional torrent
+      // addons (Peerflix: Spanish releases with a handful of peers) that stall.
+      // Torrentio's well-seeded releases are always added as well.
+      const anyTorrentio = list.some((a) => /torrentio\.strem\.fun/.test(a.transportUrl ?? ""));
+      if (!anyTorrentio) list.push(torrentioBareAddon());
       const existingTorboxIdx = list.findIndex(
         (a) =>
           a.manifest.id === "app.torbox.stremio" ||
