@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { fetchInstalledAddons, fetchManifestAt, filterEnabled } from "@/lib/addon-store";
 import {
   torboxAddonFor,
+  torrentioAddonFor,
   userAddons,
   withDebridKeys,
   type Addon,
@@ -77,6 +78,24 @@ export function useAddons(authKey: string | null, settings: Settings): {
       const userStreamCount = merged.filter(declaresStream).length;
       setUserHasStreamAddons(userStreamCount > 0);
       const list = withDebridKeys(merged, debridKeys);
+      // A debrid key only helps if some addon actually uses it. Most addons
+      // (Peerflix, TorrentClaw, ...) carry their own config, so the key the
+      // user typed in Settings never reached them. Add a Torrentio instance
+      // wired to that key so debrid sources always show up.
+      const otherDebrid = {
+        rdKey: settings.rdKey,
+        adKey: settings.adKey,
+        pmKey: settings.pmKey,
+        dlKey: settings.dlKey,
+      };
+      const hasOtherDebrid = Object.values(otherDebrid).some((k) => !!k?.trim());
+      const debridTorrentioPresent = list.some((a) =>
+        /torrentio\.strem\.fun\/[^/]*(?:realdebrid|alldebrid|premiumize|debridlink)=/.test(a.transportUrl ?? ""),
+      );
+      if (hasOtherDebrid && !debridTorrentioPresent) {
+        const tio = torrentioAddonFor(otherDebrid);
+        list.unshift({ ...tio, manifest: { ...tio.manifest, id: "com.stremio.torrentio.debrid", name: "Torrentio Debrid" } });
+      }
       const existingTorboxIdx = list.findIndex(
         (a) =>
           a.manifest.id === "app.torbox.stremio" ||

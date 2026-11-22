@@ -1141,15 +1141,11 @@ html[data-theme-layout="minui"] .harbor-together-pill {
 }
 
 .harbor-search-backdrop {
-  background: color-mix(in srgb, var(--color-canvas) 88%, transparent);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: color-mix(in srgb, var(--color-canvas) 97%, transparent);
 }
 
 html[data-theme-layout="minui"] .harbor-search-backdrop {
   background: var(--color-canvas);
-  backdrop-filter: blur(22px) saturate(140%);
-  -webkit-backdrop-filter: blur(22px) saturate(140%);
 }
 
 html[data-theme-layout="minui"] .harbor-service-tile {
@@ -1285,9 +1281,7 @@ html[data-theme-card="crunch"] .harbor-together-pill {
 }
 
 html[data-theme-card="crunch"] .harbor-search-backdrop {
-  background: color-mix(in srgb, var(--color-canvas) 92%, transparent);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  background: color-mix(in srgb, var(--color-canvas) 97%, transparent);
 }
 
 html[data-theme-card="crunch"] .harbor-cinema-badge {

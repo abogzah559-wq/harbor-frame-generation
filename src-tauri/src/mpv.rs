@@ -520,6 +520,9 @@ pub async fn mpv_start(
         let _ = mpv.set_property("cache", "yes");
         let _ = mpv.set_property("cache-secs", "300");
         let _ = mpv.set_property("cache-pause", "yes");
+        // After a stall, refill a few seconds before resuming instead of the
+        // default 1 s: one short pause beats a string of stop/start stutters.
+        let _ = mpv.set_property("cache-pause-wait", "4");
         let _ = mpv.set_property("demuxer-max-bytes", "512MiB");
         let _ = mpv.set_property("demuxer-max-back-bytes", "64MiB");
         let _ = mpv.set_property("demuxer-readahead-secs", "300");

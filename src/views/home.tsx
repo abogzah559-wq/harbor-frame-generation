@@ -62,9 +62,13 @@ import {
   buildAnimeHomeRows,
   buildCinemetaRows,
   buildTmdbRows,
+  buildTmdbSpecs,
+  homeCacheKey,
   isStreamingServiceRow,
   MAX_PER_ROW,
   mergeRows,
+  readHomeCache,
+  writeHomeCache,
 } from "./home/home-rows";
 import type { HomeRow } from "./home/home-types";
 import { loadNuvioPresets } from "@/lib/nuvio/presets";
@@ -149,6 +153,12 @@ export function Home({ active = true }: { active?: boolean }) {
 
   useEffect(() => {
     let cancelled = false;
+    const cacheKey = homeCacheKey(settings, authKey);
+    const cached = readHomeCache(cacheKey, settings.tmdbKey ? buildTmdbSpecs(settings) : []);
+    if (cached) {
+      setRows((prev) => (prev.length > 0 ? prev : cached.rows));
+      setHeroPool((prev) => (prev.length > 0 ? prev : cached.hero));
+    }
     (async () => {
       const isClassic = settings.homeMode === "classic";
 
@@ -162,8 +172,12 @@ export function Home({ active = true }: { active?: boolean }) {
         }
       }
       if (cancelled) return;
-      setRows(mergeRows(built.rows, []));
-      setHeroPool(built.hero);
+      if (!cached) {
+        // First start: show what we have now. With a cache on screen, wait for
+        // the full set below so rows do not disappear and pop back in.
+        setRows(mergeRows(built.rows, []));
+      }
+      if (built.hero.length > 0 || !cached) setHeroPool(built.hero);
 
       const dedupRows = isClassic ? false : !settings.homeShowAllAddonRows;
       const addons = await loadAddonRows(authKey, { dedup: dedupRows }).catch(
@@ -173,7 +187,11 @@ export function Home({ active = true }: { active?: boolean }) {
       const filtered = isClassic
         ? addons
         : addons.filter((a) => !isAnimeRow(a) && !isStreamingServiceRow(a.name));
-      setRows(mergeRows(built.rows, filtered, { dedup: dedupRows }));
+      const finalRows = mergeRows(built.rows, filtered, { dedup: dedupRows });
+      if (finalRows.length > 0 || !cached) {
+        setRows(finalRows);
+        writeHomeCache(cacheKey, finalRows, built.hero);
+      }
 
       if (authKey) {
         const installed = await userAddons(authKey).catch(() => []);
@@ -192,10 +210,14 @@ export function Home({ active = true }: { active?: boolean }) {
       return;
     }
     let cancelled = false;
+    const animeCacheKey = "harbor.home.rows.v1:anime";
+    const cachedAnime = readHomeCache(animeCacheKey, []);
+    if (cachedAnime) setAnimeRows((prev) => (prev.length > 0 ? prev : cachedAnime.rows));
     (async () => {
       const built = await buildAnimeHomeRows();
       if (cancelled) return;
-      setAnimeRows(built);
+      if (built.length > 0 || !cachedAnime) setAnimeRows(built);
+      if (built.length > 0) writeHomeCache(animeCacheKey, built, []);
     })().catch(() => {});
     return () => {
       cancelled = true;

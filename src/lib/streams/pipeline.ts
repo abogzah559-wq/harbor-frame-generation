@@ -3,6 +3,7 @@ import { dlog } from "@/lib/debug";
 import type { DebridStore } from "@/lib/debrid/types";
 import { fetchAddonStreams, type StreamRequest } from "./addons";
 import { enhanceAnimeStreams } from "./anitomy";
+import { hasUncachedMarker } from "./cached";
 import { fetchLibraryStreams, type LibraryQuery } from "./library";
 import { parseStream } from "./parser";
 import { applyTrust, type Rejection, type TrustOptions } from "./trust";
@@ -12,6 +13,29 @@ import type { ParsedStream, RankedPicker, Stream } from "./types";
 const PREFER_AAC = typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window);
 
 const GIB = 1024 ** 3;
+
+/** P2P sources with fewer seeders than this stall and buffer, so they are hidden. */
+const MIN_P2P_SEEDERS = 3;
+
+function isCachedAnywhere(p: ParsedStream): boolean {
+  return Object.values(p.cached).some(Boolean);
+}
+
+/**
+ * Hides sources that will not play smoothly: debrid links that still need a
+ * download (they never start), and torrents with almost no seeders. If that
+ * would leave nothing, everything is kept so the user still has a choice.
+ */
+export function pruneUnplayable(parsed: ParsedStream[]): ParsedStream[] {
+  const kept = parsed.filter((p) => {
+    if (isCachedAnywhere(p)) return true;
+    if (hasUncachedMarker(p)) return false;
+    const p2pOnly = !!p.infoHash && !p.url;
+    if (p2pOnly && p.seeders != null && p.seeders < MIN_P2P_SEEDERS) return false;
+    return true;
+  });
+  return kept.length > 0 ? kept : parsed;
+}
 const RESCUABLE_REASON_RX = /^(fresh-cinema-fake|new-release-stub)/;
 
 function rescueCorroboratedLeaks(rejected: Rejection[], trust: TrustOptions): Set<ParsedStream> {
@@ -88,7 +112,7 @@ export async function runPipeline(
 
   const buildPartial = (addonStreams: Stream[]): PipelineResult => {
     const merged = mergeAndDedupe(library, addonStreams);
-    const parsed = merged.map(parseStream);
+    const parsed = pruneUnplayable(merged.map(parseStream));
     const { keep, rejected } = applyTrust(parsed, input.trust ?? {});
     const corpus = computeCorpusStats(keep, input.score);
     const scored = keep.map((s) => scoreStream(s, input.score, corpus));
@@ -123,7 +147,7 @@ export async function runPipeline(
   const addonStreams = addonSettled.status === "fulfilled" ? addonSettled.value : [];
   const merged = mergeAndDedupe(library, addonStreams);
 
-  const parsed = merged.map(parseStream);
+  let parsed = merged.map(parseStream);
 
   if (input.isAnime) {
     await enhanceAnimeStreams(parsed);
@@ -179,6 +203,7 @@ export async function runPipeline(
     dlog(`[pipeline] final: ${totalCached}/${parsed.length} streams marked cached`);
   }
 
+  parsed = pruneUnplayable(parsed);
   const core = await runCorePipeline(parsed, input.trust ?? {}, input.score);
   if (core) {
     if (core.rejected.length > 0) {

@@ -103,14 +103,16 @@ export function SearchOverlay() {
   return createPortal(
     <div className="fixed inset-0 z-[200] flex flex-col" role="dialog" aria-modal="true" aria-label={t("Search")}>
       <button
+        type="button"
         aria-label={t("Close search")}
         onClick={close}
-        data-tauri-drag-region
         className="harbor-search-backdrop absolute inset-0 cursor-default"
       />
 
       <div
-        data-tauri-drag-region
+        onClick={(e) => {
+          if (e.target === e.currentTarget) close();
+        }}
         className="relative mx-auto flex h-full w-full max-w-[1080px] flex-col px-6 py-6 sm:px-10 sm:py-10"
       >
         <div
@@ -186,11 +188,19 @@ export function SearchOverlay() {
               type="button"
               aria-label={t("Clear")}
               onClick={clear}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-ink-subtle transition-colors hover:bg-canvas/60 hover:text-ink"
+              className="flex h-10 items-center justify-center rounded-full px-3 text-[13px] text-ink-subtle transition-colors hover:bg-canvas/60 hover:text-ink"
             >
-              <X size={18} strokeWidth={2.2} />
+              {t("Clear")}
             </button>
           )}
+          <button
+            type="button"
+            aria-label={t("Close search")}
+            onClick={close}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-canvas/50 text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
+          >
+            <X size={19} strokeWidth={2.2} />
+          </button>
         </div>
 
         <div className="relative mt-6 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

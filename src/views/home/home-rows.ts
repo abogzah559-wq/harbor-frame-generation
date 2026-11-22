@@ -303,3 +303,68 @@ export function mergeRows(
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Instant home: the last rows that loaded are kept on disk and shown at once
+// on the next start, then replaced by fresh ones as they arrive.
+
+const HOME_CACHE_PREFIX = "harbor.home.rows.v1";
+const HOME_CACHE_MAX_PER_ROW = 24;
+
+type CachedHomeRow = Pick<HomeRow, "key" | "type" | "name" | "noDedup"> & { metas: Meta[] };
+type CachedHome = { rows: CachedHomeRow[]; hero: Meta[]; at: number };
+
+export function homeCacheKey(settings: Settings, authKey: string | null): string {
+  const lang = settings.tmdbLanguage || "ar";
+  return `${HOME_CACHE_PREFIX}:${settings.homeMode}:${lang}:${settings.region}:${authKey ? "a" : "-"}:${settings.tmdbKey ? "t" : "-"}`;
+}
+
+export function readHomeCache(key: string, specs: RowSpec[]): { rows: HomeRow[]; hero: Meta[] } | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as CachedHome;
+    if (!data || !Array.isArray(data.rows) || data.rows.length === 0) return null;
+    const fetchers = new Map(specs.map((s) => [s.key, s.fetcher]));
+    const rows: HomeRow[] = data.rows
+      .filter((r) => r && typeof r.key === "string" && Array.isArray(r.metas) && r.metas.length > 0)
+      .map((r) => {
+        const fetcher = fetchers.get(r.key);
+        return { ...r, page: 1, hasMore: !!fetcher, fetcher };
+      });
+    return rows.length > 0 ? { rows, hero: Array.isArray(data.hero) ? data.hero : [] } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeHomeCache(key: string, rows: HomeRow[], hero: Meta[]): void {
+  if (rows.length === 0) return;
+  const data: CachedHome = {
+    rows: rows
+      .filter((r) => !r.sourceRow && r.metas.length > 0)
+      .map((r) => ({
+        key: r.key,
+        type: r.type,
+        name: r.name,
+        noDedup: r.noDedup,
+        metas: r.metas.slice(0, HOME_CACHE_MAX_PER_ROW),
+      })),
+    hero: hero.slice(0, 8),
+    at: Date.now(),
+  };
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {
+    // Storage full: drop older home caches and try once more.
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(HOME_CACHE_PREFIX) && k !== key) localStorage.removeItem(k);
+      }
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch {
+      /* give up quietly; the home still loads from the network */
+    }
+  }
+}
