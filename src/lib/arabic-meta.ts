@@ -172,14 +172,20 @@ function resolve(meta: Meta): Promise<void> {
         const fromTmdb = await tmdbArabic(meta).catch(() => null);
         if (hasArabic(fromTmdb?.n)) entry.n = fromTmdb!.n!.trim();
         if (hasArabic(fromTmdb?.d)) entry.d = fromTmdb!.d!.trim();
+        let unreachable = false;
         if (!entry.n && meta.name && !hasArabic(meta.name)) {
           const n = await googleTranslateToArabic(meta.name);
           if (hasArabic(n)) entry.n = n!;
+          else if (n == null) unreachable = true;
         }
         if (!entry.d && meta.description && !hasArabic(meta.description)) {
           const d = await googleTranslateToArabic(meta.description);
           if (hasArabic(d)) entry.d = d!;
+          else if (d == null) unreachable = true;
         }
+        // Translation service busy or offline: remember the gap for ten
+        // minutes only, then try again, instead of keeping English for a month.
+        if (unreachable && !(entry.n && entry.d)) entry.at = Date.now() - TTL_MS + 10 * 60 * 1000;
         load().set(key, entry);
         scheduleSave();
         notify(key);
@@ -206,6 +212,10 @@ export function arabicMetaNow(meta: Meta): Meta {
   if (!needsWork(meta)) return meta;
   const e = load().get(cacheId(meta));
   if (!e) return meta;
+  if (Date.now() - e.at >= TTL_MS) {
+    load().delete(cacheId(meta));
+    return meta;
+  }
   const name = !hasArabic(meta.name) && e.n ? e.n : meta.name;
   const description = meta.description && !hasArabic(meta.description) && e.d ? e.d : meta.description ?? e.d;
   if (name === meta.name && description === meta.description) return meta;

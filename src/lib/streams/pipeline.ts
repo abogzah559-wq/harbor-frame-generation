@@ -29,8 +29,10 @@ function isCachedAnywhere(p: ParsedStream): boolean {
 export function pruneUnplayable(parsed: ParsedStream[]): ParsedStream[] {
   const kept = parsed.filter((p) => {
     if (isCachedAnywhere(p)) return true;
-    if (hasUncachedMarker(p)) return false;
     const p2pOnly = !!p.infoHash && !p.url;
+    // Debrid links (they carry a url) that still need downloading on the
+    // debrid side. Plain torrents can use the same icons, so they are left alone.
+    if (!p2pOnly && p.url && hasUncachedMarker(p)) return false;
     if (p2pOnly && p.seeders != null && p.seeders < MIN_P2P_SEEDERS) return false;
     return true;
   });

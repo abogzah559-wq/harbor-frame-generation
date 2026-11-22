@@ -27,7 +27,9 @@ This is a Windows build of [Harbor](docs/HARBOR-UPSTREAM.md), a desktop client f
 | **Scene cuts** | Real cuts switch cleanly instead of morphing. Fast camera moves are still interpolated. |
 | **Fast torrents** | A streaming-first engine fetches the moment you skip to first, so seeking resumes in about a second, and pre-loads the next episode of a season pack. |
 | **VPN protection** | Torrent traffic can go through a SOCKS5 proxy or an in-app WireGuard tunnel, with a kill switch that never falls back to your normal connection. |
-| **Arabic subtitles** | With your own Gemini key, any subtitle is translated into natural Arabic, automatically when a title has no Arabic subtitle. |
+| **Fully Arabic** | Arabic interface, Arabic titles and synopses everywhere, Arabic or English search, and the Thmanyah font when it is installed. |
+| **Arabic subtitles** | Arabic subtitles are picked first. When a title has none, the subtitle is translated on the fly: instantly with free Google Translate, then with Gemini when you add a key. |
+| **Clean source list** | Sources that won't play (uncached debrid links, torrents with almost no seeders) are hidden, and your debrid key works with any addon. |
 | **Updates** | Harbor checks for a new release every 30 minutes, downloads it in the background and installs it when you close Harbor, or right away with **Restart now** in Settings → Advanced. |
 
 ## Install
@@ -93,7 +95,7 @@ pnpm run setup:fonts
 pnpm tauri build
 ```
 
-Release installers are built by the `windows-build` workflow. Running it with a `release_tag` such as `boost-9` publishes a release with [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) as its notes. The `scene-cut-test` workflow runs the scene-cut detector in the same VapourSynth runtime Boost installs, on real video.
+Release installers are built by the `windows-build` workflow. Running it with a `release_tag` such as `boost-10` publishes a release with [docs/RELEASE-NOTES.md](docs/RELEASE-NOTES.md) as its notes. The `scene-cut-test` workflow runs the scene-cut detector in the same VapourSynth runtime Boost installs, on real video.
 
 | Part | Where |
 |---|---|

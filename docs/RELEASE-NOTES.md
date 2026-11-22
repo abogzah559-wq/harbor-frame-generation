@@ -1,8 +1,38 @@
-# Harbor Frame Generation boost-9
+# Harbor Frame Generation boost-10
 
 Harbor Frame Generation is a Windows build of [Harbor](https://github.com/harborstremio/harbor), a desktop app for watching films and series through Stremio addons, with **Boost** added to its built-in mpv player: AI frame generation, GPU upscaling and a GPU budget that keeps playback smooth. Everything runs inside Harbor; no other program is needed.
 
-## New in boost-9
+## New in boost-10
+
+### Fully Arabic
+- **Arabic only.** The whole interface is now in Arabic, including hundreds of screens and messages that were still in English. The English and Portuguese interface options were removed.
+- **Arabic titles and stories everywhere.** Cards, Top 10, the banner, search results and title pages show each title's Arabic name and synopsis. Harbor uses TMDB's official Arabic text when your TMDB key is set, and free Google Translate for anything still in English, so stories are readable in Arabic even without a key. Results are cached, so each title is looked up once.
+- **Thmanyah font.** When the free Thmanyah font is installed in Windows, Harbor uses it for every text and for subtitles. If it is missing, a card on the home page links to the official download page (the font's license does not allow shipping it inside apps).
+- **TMDB key prompt.** New users see a clear card explaining that their own free TMDB key turns on Arabic titles and Arabic search.
+
+### Search
+- **Search closes instantly.** Clicking outside the box or the new close button now always closes search. The empty area around the box was treated as a window-drag area, so clicks there were swallowed.
+- **Lighter search screen.** The full-screen blur behind search was removed; it made typing and scrolling stutter on busy pages.
+- **Arabic or English, both work.** An Arabic query is sent to TMDB as typed and to Cinemeta, anime and addon catalogs in English, so a title is found whichever language you type it in.
+
+### Sources and playback
+- **Broken sources are hidden.** Debrid links that still need downloading on the debrid side (they never start) and torrents with fewer than 3 seeders are no longer listed. If that would leave nothing, everything is shown.
+- **Debrid keys now always work.** A Real-Debrid, AllDebrid, Premiumize or Debrid-Link key in Settings only reached the built-in Torrentio before, so with other addons (Peerflix, TorrentClaw and others) debrid links never appeared. Harbor now adds a Torrentio source wired to your key automatically.
+- **Less stop-and-go buffering.** After a stall, the player refills a few seconds before resuming instead of one, so a slow moment becomes one short pause instead of a string of stutters.
+
+### Arabic subtitles
+- **Arabic first, always.** Arabic is now the first subtitle language, subtitles are on by default, and Harbor switches to an Arabic subtitle as soon as one arrives from your subtitle addons (SubDL, SubSource and others answer a few seconds after playback starts).
+- **Instant translation.** When a title has no Arabic subtitle, the lines right where you are are translated with free Google Translate and shown within a second or two. With a Gemini key, the full subtitle is then translated with Gemini for better quality and replaces it; without a key, Google translates the rest.
+- **Faster start.** Automatic translation starts 3.5 seconds into playback instead of 8, and it prefers a downloaded subtitle over one built into the video (reading a built-in subtitle from a torrent means fetching the whole file first).
+- **More Gemini models.** Gemini 3.7 Flash, 3.1 Flash-Lite and the latest Flash alias were added to the list, and if Gemini runs out of quota mid-way, Google finishes the job instead of leaving English.
+
+### Home page
+- **Opens instantly.** The rows you saw last time are shown at once on the next start and refreshed in the background, instead of a blank page while every row loads.
+- **No more gaps in rows.** Posters show right away while a better version is looked up, instead of leaving empty cards.
+- **New Top 10 hover.** The poster lifts, turns slightly toward its number and catches a sweep of light, while the rank fills with colour and glows.
+- **Collection cards fixed.** Hovering a collection card no longer makes its artwork spill past the rounded corners or overlap its neighbours.
+
+## boost-9
 
 ### Faster torrent playback
 - **New streaming engine.** Torrents now play through a streaming-first engine (from [TorrentPlayer](https://github.com/torrentplayer/torrentplayer)). It downloads the exact part of the file the player is about to show first. Large and 4K files start sooner, and a seek resumes in about a second instead of waiting for the download to catch up.
