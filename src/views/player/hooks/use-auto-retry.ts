@@ -9,7 +9,7 @@ import { buildTranscodedUrl, probeStremioServer } from "@/lib/stremio-server";
 import type { DebridStore } from "@/lib/debrid/types";
 import type { Meta } from "@/lib/cinemeta";
 import type { PlayerSrc, PlayEpisode } from "@/lib/view";
-import { BLACK_SCREEN_GRACE_MS, MAX_AUTORETRY_ATTEMPTS, ROOM_STALL_MS, SLOW_LOAD_MS, STUCK_AUTORETRY_MS } from "../player-utils";
+import { BLACK_SCREEN_GRACE_MS, MAX_AUTORETRY_ATTEMPTS, P2P_STUCK_MS, ROOM_STALL_MS, SLOW_LOAD_MS, STUCK_AUTORETRY_MS } from "../player-utils";
 import { GENUINE_FAILURE_WINDOW_MS, type EngineStats } from "@/lib/torrent/engine-stats";
 
 type OpenPicker = (
@@ -304,6 +304,20 @@ export function useAutoRetry(params: {
       }
     }
   }, [snap.status, snap.videoWidth, snap.videoHeight, triggerAutoRetry, src.url, isP2pEngine, engineFailure]);
+
+  // A torrent that still has not started after this long has no usable
+  // peers: move on instead of showing "Connecting" forever.
+  useEffect(() => {
+    if (!isP2pEngine || engineFailure) return;
+    if (snap.status === "ended") return;
+    if (snap.durationSec > 0 || getPlaybackPosition() > 1) return;
+    const t = window.setTimeout(() => {
+      if (snap.durationSec === 0 && getPlaybackPosition() === 0) {
+        triggerAutoRetry("torrent did not start (no usable peers)");
+      }
+    }, P2P_STUCK_MS);
+    return () => window.clearTimeout(t);
+  }, [src.url, snap.durationSec, snap.status, triggerAutoRetry, isP2pEngine, engineFailure]);
 
   useEffect(() => {
     if (snap.status === "ended") return;

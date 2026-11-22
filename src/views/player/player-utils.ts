@@ -16,6 +16,7 @@ export const DURATION_MISMATCH_S = 4;
 export const ROOM_STALL_MS = 9000;
 export const SLOW_LOAD_MS = 50_000;
 export const STUCK_AUTORETRY_MS = 18_000;
+export const P2P_STUCK_MS = 45_000;
 export const BLACK_SCREEN_GRACE_MS = 6_000;
 export const MAX_AUTORETRY_ATTEMPTS = 5;
 export const CHROME_HIDE_MS_PLAYING = 1800;

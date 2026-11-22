@@ -1,5 +1,9 @@
 // Arabic for the rest of the interface (strings that had no translation yet).
 const ar: Record<string, string> = {
+  "Connecting": "جارٍ الاتصال",
+  "Stream Together": "شغّل مع الجماعة",
+  "Connecting to": "جارٍ الاتصال بـ",
+  "Paused on": "موقوف على",
   "Same file as host": "نفس ملف المضيف",
   "Close match to host": "قريب من ملف المضيف",
   "In your local library": "موجود في مكتبتك المحلية",

@@ -26,7 +26,19 @@ function isCachedAnywhere(p: ParsedStream): boolean {
  * download (they never start), and torrents with almost no seeders. If that
  * would leave nothing, everything is kept so the user still has a choice.
  */
+/** Rows some addons add that are messages, not videos ("searches disabled,
+ *  use a debrid provider", "donation needed", "invalid key", ...). */
+const NOTICE_RX =
+  /disabled|use a debrid|debrid provider|donation|not configured|configure (it|the addon)|invalid (api )?key|api key|expired|limit reached|rate limit|no (streams|results) found|unavailable|⛔|🚫|❌/i;
+
+function isNoticeRow(p: ParsedStream): boolean {
+  if (p.infoHash || p.size != null) return false;
+  return NOTICE_RX.test(`${p.name ?? ""} ${p.title ?? ""} ${p.description ?? ""}`);
+}
+
 export function pruneUnplayable(parsed: ParsedStream[]): ParsedStream[] {
+  // Message rows are never playable, so they go even if nothing else is left.
+  parsed = parsed.filter((p) => !isNoticeRow(p));
   const kept = parsed.filter((p) => {
     if (isCachedAnywhere(p)) return true;
     const p2pOnly = !!p.infoHash && !p.url;
