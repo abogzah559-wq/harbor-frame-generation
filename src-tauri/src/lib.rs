@@ -706,6 +706,12 @@ pub fn run() {
             selfupdate::selfupdate_stage,
             selfupdate::selfupdate_install_now,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_app, event| {
+            // A downloaded update is installed as Harbor closes.
+            if let tauri::RunEvent::Exit = event {
+                selfupdate::install_staged_on_exit();
+            }
+        });
 }

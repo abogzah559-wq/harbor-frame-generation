@@ -3,9 +3,9 @@
 //! The front end finds a newer GitHub release and calls `selfupdate_stage`:
 //! the installer is downloaded in the background (progress goes out as
 //! `selfupdate-progress`), its SHA-256 checked against the one GitHub
-//! publishes, and a hidden helper waits for Harbor to exit and then runs the
-//! installer silently. `selfupdate_install_now` exits Harbor right away and
-//! has the helper start it again once the new version is installed.
+//! publishes, and the installer runs silently when Harbor closes.
+//! `selfupdate_install_now` starts it right away (with /R, so it opens
+//! Harbor again when done) and exits.
 
 use futures_util::StreamExt;
 use sha2::{Digest, Sha256};
@@ -17,10 +17,8 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use std::path::PathBuf;
 use tauri::Emitter;
 
-/// Present while "Restart now" was chosen: the helper relaunches Harbor.
-fn relaunch_marker() -> PathBuf {
-    std::env::temp_dir().join("harbor-update").join("relaunch")
-}
+/// The installer downloaded this session, ready to run.
+static STAGED: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 const ALLOWED_PREFIX: &str = "https://github.com/abogzah559-wq/harbor-frame-generation/releases/download/";
 
@@ -34,6 +32,33 @@ pub async fn selfupdate_stage(app: tauri::AppHandle, url: String, sha256: Option
     tokio::fs::create_dir_all(&dir).await.map_err(|e| e.to_string())?;
     let path = dir.join(format!("Harbor-setup-{}.exe", safe_tag));
     let part = path.with_extension("part");
+
+    // Older downloads are no longer needed (each one is a few hundred MB).
+    if let Ok(mut rd) = tokio::fs::read_dir(&dir).await {
+        let keep = format!("Harbor-setup-{}.", safe_tag);
+        while let Ok(Some(e)) = rd.next_entry().await {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with("Harbor-setup-") && !name.starts_with(&keep) {
+                let _ = tokio::fs::remove_file(e.path()).await;
+            }
+        }
+    }
+
+    // Already downloaded by an earlier run: check it and reuse it instead of
+    // downloading the whole installer again.
+    if tokio::fs::metadata(&path).await.map(|m| m.len() > 0).unwrap_or(false) {
+        let ok = match sha256.as_deref().map(|w| w.trim_start_matches("sha256:").to_ascii_lowercase()) {
+            Some(want) if !want.is_empty() => sha256_of_file(&path).await.map(|got| got == want).unwrap_or(false),
+            _ => true,
+        };
+        if ok {
+            *STAGED.lock().unwrap() = Some(path.clone());
+            let len = tokio::fs::metadata(&path).await.map(|m| m.len()).unwrap_or(0);
+            let _ = app.emit("selfupdate-progress", (len, len));
+            return Ok(path.to_string_lossy().to_string());
+        }
+        let _ = tokio::fs::remove_file(&path).await;
+    }
 
     let client = reqwest::Client::builder()
         .user_agent("HarborFrameGeneration-updater")
@@ -62,30 +87,7 @@ pub async fn selfupdate_stage(app: tauri::AppHandle, url: String, sha256: Option
     let _ = tokio::fs::remove_file(&path).await;
     tokio::fs::rename(&part, &path).await.map_err(|e| e.to_string())?;
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let pid = std::process::id();
-        let q = |p: &std::path::Path| p.to_string_lossy().replace('\'', "''");
-        let exe = q(&path);
-        let marker = q(&relaunch_marker());
-        let app_exe = std::env::current_exe().map(|p| q(&p)).unwrap_or_default();
-        let _ = std::fs::remove_file(relaunch_marker());
-        // Wait for this Harbor to exit, install silently (/S), and start it
-        // again if the update was installed with "Restart now".
-        let script = format!(
-            "Wait-Process -Id {pid} -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; \
-             Start-Process -FilePath '{exe}' -ArgumentList '/S' -Wait; \
-             if (Test-Path -LiteralPath '{marker}') {{ Remove-Item -LiteralPath '{marker}' -Force; \
-             if ('{app_exe}' -ne '') {{ Start-Process -FilePath '{app_exe}' }} }}"
-        );
-        std::process::Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-Command", &script])
-            // CREATE_NO_WINDOW | DETACHED_PROCESS
-            .creation_flags(0x0800_0000 | 0x0000_0008)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
+    *STAGED.lock().unwrap() = Some(path.clone());
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -93,14 +95,57 @@ pub async fn selfupdate_stage(app: tauri::AppHandle, url: String, sha256: Option
 /// `selfupdate_stage` installs it and opens Harbor again.
 #[tauri::command]
 pub fn selfupdate_install_now(app: tauri::AppHandle) -> Result<(), String> {
-    let m = relaunch_marker();
-    if let Some(dir) = m.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    std::fs::write(&m, b"1").map_err(|e| e.to_string())?;
+    let staged = STAGED.lock().unwrap().take().ok_or("no update downloaded")?;
     crate::shutdown_services(&app);
+    // /R: the installer opens Harbor again when it is done. It also closes
+    // anything of Harbor's still running, so it can start before we exit.
+    spawn_installer(&staged, true)?;
     app.exit(0);
     Ok(())
+}
+
+/// Install a downloaded update while Harbor closes (no restart).
+pub fn install_staged_on_exit() {
+    if let Some(p) = STAGED.lock().unwrap().take() {
+        if let Err(e) = spawn_installer(&p, false) {
+            eprintln!("[selfupdate] could not start the installer: {e}");
+        }
+    }
+}
+
+/// Run the installer silently, fully detached from Harbor so it survives
+/// Harbor exiting. (The old hidden PowerShell helper was often stopped
+/// before it got to run the installer, so updates never installed.)
+fn spawn_installer(installer: &std::path::Path, relaunch: bool) -> Result<(), String> {
+    let mut args = vec!["/S"];
+    if relaunch {
+        args.push("/R");
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+        let first = std::process::Command::new(installer)
+            .args(&args)
+            .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB)
+            .spawn();
+        if first.is_ok() {
+            return Ok(());
+        }
+        // Breaking away from a job is not always allowed; try without it.
+        std::process::Command::new(installer)
+            .args(&args)
+            .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new(installer).args(&args).spawn().map(|_| ()).map_err(|e| e.to_string())
+    }
 }
 
 const PIECE: u64 = 4 * 1024 * 1024;
