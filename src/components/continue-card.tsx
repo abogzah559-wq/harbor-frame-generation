@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useArabicMeta } from "@/lib/arabic-meta";
 import { Check, Play, X } from "lucide-react";
 import simklLogo from "@/assets/simkl.png";
 import { meta as fetchMeta, narrowMediaType, type Meta } from "@/lib/cinemeta";
@@ -211,6 +212,8 @@ export const ContinueCard = memo(function ContinueCard({ item, watched = false, 
         poster: item.poster,
         background: item.background,
       };
+  // The card's title in Arabic (name only; no story is needed here).
+  const arTitle = useArabicMeta({ ...meta, name: hydratedMeta?.name?.trim() || item.name, description: undefined }).name;
 
   const onClick = () => {
     openMeta(meta, ep ? { episodeHint: ep } : undefined);
@@ -368,7 +371,7 @@ export const ContinueCard = memo(function ContinueCard({ item, watched = false, 
         </div>
       </div>
       <p className="truncate text-[13px] font-medium text-ink">
-        {hydratedMeta?.name?.trim() || item.name}
+        {arTitle}
       </p>
       </button>
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex aspect-[16/9] items-center justify-center opacity-0 transition-opacity duration-[220ms] group-hover:opacity-100 group-focus-within:opacity-100">

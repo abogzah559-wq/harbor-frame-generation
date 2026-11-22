@@ -29,16 +29,26 @@ function isCachedAnywhere(p: ParsedStream): boolean {
 /** Rows some addons add that are messages, not videos ("searches disabled,
  *  use a debrid provider", "donation needed", "invalid key", ...). */
 const NOTICE_RX =
-  /disabled|use a debrid|debrid provider|donation|not configured|configure (it|the addon)|invalid (api )?key|api key|expired|limit reached|rate limit|no (streams|results) found|unavailable|⛔|🚫|❌/i;
+  /disabled|use a debrid|debrid provider|donation|join the discord|discord server|not configured|configure (it|the addon)|invalid (api )?key|api key|expired|limit reached|rate limit|no (streams|results) found|unavailable|⛔|🚫|❌|release: ?\d{4}|popularity:|rating: ?[\d.]+ ?\/ ?10|tmdb ?: ?[\d.]|ratings aggregator|watch ?next|sync debrid|retry this title|^\s*subscription\s*$/im;
 
 function isNoticeRow(p: ParsedStream): boolean {
   if (p.infoHash || p.size != null) return false;
   return NOTICE_RX.test(`${p.name ?? ""} ${p.title ?? ""} ${p.description ?? ""}`);
 }
 
+/** Something the player can actually open: a torrent, a direct link or a
+ *  local file. Rows that only link out (YouTube, recommendations, ratings, a web
+ *  page, a "stremio://" title link) are not sources. */
+function isPlayableKind(p: ParsedStream): boolean {
+  if (p.infoHash) return true;
+  if (p.url && p.url !== "#" && !/^stremio:/i.test(p.url)) return true;
+  return false;
+}
+
 export function pruneUnplayable(parsed: ParsedStream[]): ParsedStream[] {
-  // Message rows are never playable, so they go even if nothing else is left.
-  parsed = parsed.filter((p) => !isNoticeRow(p));
+  // Message and link-only rows are never playable, so they go even if
+  // nothing else is left.
+  parsed = parsed.filter((p) => isPlayableKind(p) && !isNoticeRow(p));
   const kept = parsed.filter((p) => {
     if (isCachedAnywhere(p)) return true;
     const p2pOnly = !!p.infoHash && !p.url;

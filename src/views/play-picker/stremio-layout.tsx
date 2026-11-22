@@ -87,7 +87,13 @@ export function StremioLayout({
   const visibleStreams = useMemo(() => {
     const filtered = customFiltered.filter((s) => matchesFacets(s, facet));
     if (filter !== "all") return filtered;
-    if (preserveOrder) return filtered;
+    // Sources that start at once (cached on a debrid: ⚡ / "instant", or a
+    // Torrentio debrid link) always come first; addon order decides after.
+    const instant = (s: ScoredStream) =>
+      isInstantText(s) || Object.values(s.cached ?? {}).some(Boolean) || /\[(\+(RD|AD|PM|DL|TB)|(RD|AD|PM|DL|TB)\+)\]/.test(s.name ?? "");
+    if (preserveOrder) {
+      return [...filtered.filter(instant), ...filtered.filter((s) => !instant(s))];
+    }
     const downloadRx = /[⏳⌛⬇⏬🔽📥]|\bdownload(ing)?\b|\bqueued?\b|\bnot[\s_-]?cached\b/iu;
     const isDownload = (s: ScoredStream) => {
       const haystack = `${s.name ?? ""} ${s.title ?? ""} ${s.description ?? ""}`;
@@ -100,6 +106,9 @@ export function StremioLayout({
       const ad = isDownload(a) ? 1 : 0;
       const bd = isDownload(b) ? 1 : 0;
       if (ad !== bd) return ad - bd;
+      const ain = instant(a) ? 1 : 0;
+      const bin = instant(b) ? 1 : 0;
+      if (ain !== bin) return bin - ain;
       const ar = addonRank.get(a.addonUrl ?? "") ?? 9999;
       const br = addonRank.get(b.addonUrl ?? "") ?? 9999;
       if (ar !== br) return ar - br;

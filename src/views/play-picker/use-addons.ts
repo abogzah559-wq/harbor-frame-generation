@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { fetchInstalledAddons, fetchManifestAt, filterEnabled } from "@/lib/addon-store";
 import {
   torboxAddonFor,
-  torrentioAddonFor,
   torrentioBareAddon,
   userAddons,
   withDebridKeys,
@@ -79,24 +78,10 @@ export function useAddons(authKey: string | null, settings: Settings): {
       const userStreamCount = merged.filter(declaresStream).length;
       setUserHasStreamAddons(userStreamCount > 0);
       const list = withDebridKeys(merged, debridKeys);
-      // A debrid key only helps if some addon actually uses it. Most addons
-      // (Peerflix, TorrentClaw, ...) carry their own config, so the key the
-      // user typed in Settings never reached them. Add a Torrentio instance
-      // wired to that key so debrid sources always show up.
-      const otherDebrid = {
-        rdKey: settings.rdKey,
-        adKey: settings.adKey,
-        pmKey: settings.pmKey,
-        dlKey: settings.dlKey,
-      };
-      const hasOtherDebrid = Object.values(otherDebrid).some((k) => !!k?.trim());
-      const debridTorrentioPresent = list.some((a) =>
-        /torrentio\.strem\.fun\/[^/]*(?:realdebrid|alldebrid|premiumize|debridlink)=/.test(a.transportUrl ?? ""),
-      );
-      if (hasOtherDebrid && !debridTorrentioPresent) {
-        const tio = torrentioAddonFor(otherDebrid);
-        list.unshift({ ...tio, manifest: { ...tio.manifest, id: "com.stremio.torrentio.debrid", name: "Torrentio Debrid" } });
-      }
+      // Note: no Torrentio instance wired to the debrid key is added here.
+      // Real-Debrid refuses many requests that come from Torrentio's servers
+      // ("Access denied" video), so plain Torrentio is used instead and
+      // Harbor plays its torrents through the user's own debrid key.
       // Without any Torrentio, many setups only have small regional torrent
       // addons (Peerflix: Spanish releases with a handful of peers) that stall.
       // Torrentio's well-seeded releases are always added as well.
