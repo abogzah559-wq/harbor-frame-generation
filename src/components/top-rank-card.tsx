@@ -77,7 +77,7 @@ export const TopRankCard = memo(function TopRankCard({ meta: rawMeta, rank }: { 
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] text-transparent transition-transform duration-[280ms] ease-out group-hover:scale-[1.04] group-focus-visible:scale-[1.04]"
+        className="harbor-rank-num pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] text-transparent group-hover:opacity-0 group-focus-visible:opacity-0"
         style={{
           fontFamily: '"Fraunces", "Iowan Old Style", "Georgia", serif',
           fontSize: "calc(100cqw * 240 / 228)",
@@ -89,7 +89,7 @@ export const TopRankCard = memo(function TopRankCard({ meta: rawMeta, rank }: { 
       </span>
       <span
         aria-hidden
-        className="harbor-rank-fill pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] opacity-0 transition-[opacity,transform] duration-[280ms] ease-out group-hover:scale-[1.04] group-hover:opacity-100 group-focus-visible:scale-[1.04] group-focus-visible:opacity-100"
+        className="harbor-rank-fill harbor-rank-num pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
         style={{
           fontFamily: '"Fraunces", "Iowan Old Style", "Georgia", serif',
           fontSize: "calc(100cqw * 240 / 228)",
@@ -114,7 +114,7 @@ export const TopRankCard = memo(function TopRankCard({ meta: rawMeta, rank }: { 
         {inWatchlist && <WatchlistDot />}
         <AwardDot name={meta.name} year={parseAwardYear(meta.releaseInfo)} />
       </div>
-      <p className="absolute bottom-0 end-0 w-[63%] truncate text-[12px] text-ink-subtle">
+      <p className="absolute bottom-0 end-0 w-[63%] truncate text-[12px] text-ink-subtle transition-colors duration-300 group-hover:text-ink group-focus-visible:text-ink">
         {meta.name}
       </p>
     </button>
@@ -146,7 +146,7 @@ export const AnimeRankCard = memo(function AnimeRankCard({ meta: rawMeta, rank }
     >
       <span
         aria-hidden
-        className="font-anime pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] text-transparent transition-transform duration-[280ms] ease-out group-hover:scale-[1.04] group-focus-visible:scale-[1.04]"
+        className="font-anime harbor-rank-num pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] text-transparent group-hover:opacity-0 group-focus-visible:opacity-0"
         style={{
           fontSize: "calc(100cqw * 240 / 228)",
           letterSpacing: "-0.02em",
@@ -157,7 +157,7 @@ export const AnimeRankCard = memo(function AnimeRankCard({ meta: rawMeta, rank }
       </span>
       <span
         aria-hidden
-        className="font-anime harbor-rank-fill pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] opacity-0 transition-[opacity,transform] duration-[280ms] ease-out group-hover:scale-[1.04] group-hover:opacity-100 group-focus-visible:scale-[1.04] group-focus-visible:opacity-100"
+        className="font-anime harbor-rank-fill harbor-rank-num pointer-events-none absolute -start-[3%] top-0 origin-bottom font-bold leading-[0.85] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
         style={{
           fontSize: "calc(100cqw * 240 / 228)",
           letterSpacing: "-0.02em",
@@ -181,7 +181,7 @@ export const AnimeRankCard = memo(function AnimeRankCard({ meta: rawMeta, rank }
         {inWatchlist && <WatchlistDot />}
         <AwardDot name={meta.name} year={parseAwardYear(meta.releaseInfo)} />
       </div>
-      <p className="absolute bottom-0 end-0 w-[63%] truncate text-[12px] text-ink-subtle">
+      <p className="absolute bottom-0 end-0 w-[63%] truncate text-[12px] text-ink-subtle transition-colors duration-300 group-hover:text-ink group-focus-visible:text-ink">
         {meta.name}
       </p>
     </button>

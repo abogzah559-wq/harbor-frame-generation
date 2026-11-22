@@ -568,7 +568,8 @@ export function PlayerView({ src }: { src: PlayerSrc }) {
   const subTracks = snap.subtitleTracks;
   const isPlayingNow = snap.status === "playing";
   useEffect(() => {
-    if (!settings.geminiKey || !settings.aiAutoTranslate || !isPlayingNow) return;
+    // Works with a Gemini key (best quality) or without one (free Google).
+    if (!settings.aiAutoTranslate || !isPlayingNow) return;
     if (autoTranslatedRef.current === autoTranslateKey) return;
     if (subTracks.length === 0) return;
     const isArabic = (tr: { lang?: string; label: string; title?: string }) =>
@@ -585,16 +586,20 @@ export function PlayerView({ src }: { src: PlayerSrc }) {
       if (!b || tracks.length === 0) return;
       autoTranslatedRef.current = autoTranslateKey;
       if (tracks.some(isArabic)) return;
-      if (!tracks.some((tr) => tr.selected)) {
-        const pick =
-          tracks.find((tr) => /^(en|eng)\b/i.test(tr.lang ?? "") && !tr.forced) ??
-          tracks.find((tr) => !tr.forced) ??
-          tracks[0];
-        b.setSubtitleTrack(pick.id);
-      }
+      // Translate from a downloaded subtitle when there is one: reading a
+      // subtitle built into a torrent means pulling the whole file first.
+      const english = (tr: (typeof tracks)[number]) => /^(en|eng)\b/i.test(tr.lang ?? "") && !tr.forced;
+      const pick =
+        tracks.find((tr) => english(tr) && tr.external) ??
+        tracks.find(english) ??
+        tracks.find((tr) => tr.external && !tr.forced) ??
+        tracks.find((tr) => !tr.forced) ??
+        tracks[0];
+      const current = tracks.find((tr) => tr.selected);
+      if (!current || (!current.external && pick.external)) b.setSubtitleTrack(pick.id);
       // give mpv a moment to switch tracks before reading the cues
-      window.setTimeout(() => window.dispatchEvent(new Event(TRANSLATE_EVENT)), 800);
-    }, 8000);
+      window.setTimeout(() => window.dispatchEvent(new Event(TRANSLATE_EVENT)), 600);
+    }, 3500);
     return () => window.clearTimeout(timer);
   }, [settings.geminiKey, settings.aiAutoTranslate, isPlayingNow, subTracks, autoTranslateKey]);
 

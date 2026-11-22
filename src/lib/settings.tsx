@@ -57,10 +57,32 @@ const Ctx = createContext<SettingsValue | null>(null);
 /** Harbor runs in Arabic only: interface, titles and stories. */
 function arabicOnly(s: Settings): Settings {
   const tmdbLanguage = s.tmdbLanguage?.toLowerCase().startsWith("ar") ? s.tmdbLanguage : "ar-SA";
-  if (s.uiLanguage === "ar" && tmdbLanguage === s.tmdbLanguage && s.translateTitles && s.translateDescriptions) {
+  // Arabic subtitles first, always on, and switch to Arabic as soon as one
+  // arrives (subtitle addons answer a few seconds after playback starts).
+  const subsArabicFirst = s.preferredSubLangs?.[0] === "Arabic";
+  if (
+    s.uiLanguage === "ar" &&
+    tmdbLanguage === s.tmdbLanguage &&
+    s.translateTitles &&
+    s.translateDescriptions &&
+    subsArabicFirst &&
+    s.subtitleAutoUpgrade &&
+    !s.subtitlesOffByDefault
+  ) {
     return s;
   }
-  return { ...s, uiLanguage: "ar", tmdbLanguage, translateTitles: true, translateDescriptions: true };
+  return {
+    ...s,
+    uiLanguage: "ar",
+    tmdbLanguage,
+    translateTitles: true,
+    translateDescriptions: true,
+    preferredSubLangs: subsArabicFirst
+      ? s.preferredSubLangs
+      : ["Arabic", ...(s.preferredSubLangs ?? []).filter((l) => l !== "Arabic")],
+    subtitleAutoUpgrade: true,
+    subtitlesOffByDefault: false,
+  };
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {

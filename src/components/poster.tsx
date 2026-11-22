@@ -105,7 +105,9 @@ export function usePosterChain(
   const { animeImdb, animeTvdb, animeTmdb } = useAnimeRpdbIds(rpdbKey, metaId);
   const localized = useLocalizedPoster(metaId);
   const candidates = useMemo(() => {
-    if (pending) return [];
+    // Show the poster we already have while the better one is looked up,
+    // instead of an empty card (rows used to fill in slowly, with gaps).
+    if (pending) return localized || metaPoster ? [localized ?? metaPoster!] : [];
     const base = localized ?? metaPoster;
     const out: string[] = [];
     const seen = new Set<string>();

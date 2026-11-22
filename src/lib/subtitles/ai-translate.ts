@@ -11,6 +11,7 @@ import { getPlaybackPosition } from "@/lib/player/playback-clock";
 import { getCuesAnySource } from "./extract";
 import type { SubCue } from "./parser";
 import { toSrt } from "./serialize";
+import { googleTranslate } from "@/lib/arabic-meta";
 
 export const GEMINI_KEY_URL = "https://aistudio.google.com/apikey";
 export const TRANSLATE_EVENT = "harbor:ai-translate-sub";
@@ -18,7 +19,15 @@ export const TRANSLATE_EVENT = "harbor:ai-translate-sub";
 /** Newest first. gemini-2.0-flash was shut down in June 2026 and
  *  gemini-2.5-flash only answers keys that used it before, so a new key
  *  needs a 3.x model. The first one that answers is remembered. */
-const MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"];
+const MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-flash-latest",
+  "gemini-2.5-flash",
+];
 const MODEL_KEY = "harbor.ai-subs.model";
 const BATCH = 90;
 const PARALLEL = 2;
@@ -213,6 +222,50 @@ async function translateBatch(key: string, lines: string[], context: string): Pr
 
 const clean = (t: string) => t.replace(/\{\\[^}]*\}/g, "").replace(/<[^>]+>/g, "").trim();
 
+/** Lines that start right where you are, so the first Arabic shows in a second. */
+const FIRST_LOOK = 40;
+const LINE_BREAK_MARK = " ¶ ";
+
+/**
+ * Free Google Translate for a block of lines (no key needed). Used to show
+ * Arabic straight away, and as the whole translation when there's no Gemini key.
+ */
+async function googleBatch(lines: string[]): Promise<string[]> {
+  const out: string[] = new Array(lines.length).fill("");
+  const flat = lines.map((l) => l.replace(/\s*\n\s*/g, LINE_BREAK_MARK));
+  const chunks: number[][] = [];
+  let cur: number[] = [];
+  let size = 0;
+  flat.forEach((l, i) => {
+    if (cur.length > 0 && size + l.length > 1500) {
+      chunks.push(cur);
+      cur = [];
+      size = 0;
+    }
+    cur.push(i);
+    size += l.length + 1;
+  });
+  if (cur.length) chunks.push(cur);
+  const restore = (t: string) => t.replace(/\s*¶\s*/g, "\n").trim();
+  await Promise.all(
+    chunks.map(async (idx) => {
+      const joined = idx.map((i) => flat[i]).join("\n");
+      const tr = await googleTranslate(joined, "ar");
+      const parts = tr ? tr.split("\n") : [];
+      if (parts.length === idx.length) {
+        idx.forEach((i, k) => (out[i] = restore(parts[k])));
+        return;
+      }
+      // Lines got merged: translate them one by one instead.
+      for (const i of idx) {
+        const one = await googleTranslate(flat[i], "ar");
+        out[i] = one ? restore(one) : lines[i];
+      }
+    }),
+  );
+  return out.map((t, i) => t || lines[i]);
+}
+
 /** Order blocks so the part you're watching is translated first. */
 function batchOrder(cues: SubCue[], at: number): number[][] {
   const blocks: number[][] = [];
@@ -267,10 +320,7 @@ export async function translateCurrentSubtitle(opts: {
   cacheId: string;
 }): Promise<void> {
   if (running) return;
-  if (!opts.key) {
-    set({ status: "error", progress: 0, error: "no-key" });
-    return;
-  }
+  const useGemini = !!opts.key?.trim();
   running = true;
   set({ status: "extracting", progress: 0, error: null });
   try {
@@ -279,10 +329,12 @@ export async function translateCurrentSubtitle(opts: {
     const cues = res.source.cues.filter((c) => clean(c.text));
     if (!cues.length) throw new Error("no-cues");
 
-    const fingerprint = hash(`${opts.cacheId}|${cues.length}|${cues.slice(0, 5).map((c) => c.text).join("|")}`);
+    const fingerprint = hash(
+      `${useGemini ? "gemini" : "google"}|${opts.cacheId}|${cues.length}|${cues.slice(0, 5).map((c) => c.text).join("|")}`,
+    );
     const index = readIndex();
     if (index[fingerprint]) {
-      const ok = await opts.bridge.addSubtitle(index[fingerprint], "ar", "العربية (Gemini)", true);
+      const ok = await opts.bridge.addSubtitle(index[fingerprint], "ar", useGemini ? "العربية (Gemini)" : "العربية (Google)", true);
       if (ok) {
         set({ status: "done", progress: 1 });
         return;
@@ -291,7 +343,8 @@ export async function translateCurrentSubtitle(opts: {
 
     set({ status: "translating", progress: 0 });
     const out: string[] = cues.map(() => "");
-    const order = batchOrder(cues, getPlaybackPosition());
+    const at = getPlaybackPosition();
+    const order = batchOrder(cues, at);
     let done = 0;
     let loadedEarly = false;
     let next = 0;
@@ -299,11 +352,36 @@ export async function translateCurrentSubtitle(opts: {
     const snapshot = () =>
       toSrt(cues.map((c, i) => ({ ...c, text: out[i] || clean(c.text) })));
 
+    // First look: the next lines from where you are, through free Google
+    // Translate, on screen within a second or two. Gemini then replaces them.
+    const startIdx = Math.max(0, cues.findIndex((c) => c.end >= at));
+    const firstIdx = Array.from({ length: Math.min(FIRST_LOOK, cues.length - startIdx) }, (_, k) => startIdx + k);
+    const quick = await googleBatch(firstIdx.map((i) => clean(cues[i].text))).catch(() => null);
+    const quickOut: string[] = cues.map(() => "");
+    if (quick) {
+      firstIdx.forEach((i, k) => (quickOut[i] = quick[k]));
+      const p = await writeSrt(
+        toSrt(cues.map((c, i) => ({ ...c, text: quickOut[i] || clean(c.text) }))),
+        `${name}-first`,
+      );
+      if (p) await opts.bridge.addSubtitle(p, "ar", "العربية …", true);
+    }
+
+    const translateBlock = (lines: string[]) =>
+      useGemini
+        ? translateBatch(opts.key, lines, opts.title).catch((e: ApiError) => {
+            // A Gemini problem mid-way (quota, bad key) must not leave English:
+            // fall back to Google for the rest.
+            if (e?.message === "bad-key" || e?.status === 429 || e?.message === "no-model") return googleBatch(lines);
+            throw e;
+          })
+        : googleBatch(lines);
+
     const worker = async () => {
       while (next < order.length) {
         const block = order[next++];
         const lines = block.map((i) => clean(cues[i].text));
-        const tr = await translateBatch(opts.key, lines, opts.title);
+        const tr = await translateBlock(lines);
         block.forEach((i, k) => (out[i] = tr[k]?.trim() || lines[k]));
         done += block.length;
         set({ progress: done / cues.length });
@@ -311,7 +389,7 @@ export async function translateCurrentSubtitle(opts: {
         if (!loadedEarly && order[0].every((i) => out[i])) {
           loadedEarly = true;
           const p = await writeSrt(snapshot(), `${name}-partial`);
-          if (p) await opts.bridge.addSubtitle(p, "ar", "العربية (Gemini) …", true);
+          if (p) await opts.bridge.addSubtitle(p, "ar", useGemini ? "العربية (Gemini) …" : "العربية …", true);
         }
       }
     };
@@ -319,7 +397,7 @@ export async function translateCurrentSubtitle(opts: {
 
     const path = await writeSrt(snapshot(), name);
     if (!path) throw new Error("save-failed");
-    await opts.bridge.addSubtitle(path, "ar", "العربية (Gemini)", true);
+    await opts.bridge.addSubtitle(path, "ar", useGemini ? "العربية (Gemini)" : "العربية (Google)", true);
     writeIndex({ ...readIndex(), [fingerprint]: path });
     set({ status: "done", progress: 1 });
   } catch (e) {
