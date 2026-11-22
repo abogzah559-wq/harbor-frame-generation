@@ -669,7 +669,7 @@ export function DetailView({
   };
   const baseOverview = detail?.overview ?? (meta.id.startsWith("tmdb:") ? "" : meta.description) ?? "";
   // Arabic name and story whatever the source (TMDB in Arabic, then free translation).
-  const arabic = useArabicMeta({ ...meta, name: title || meta.name, description: baseOverview || meta.description });
+  const arabic = useArabicMeta({ ...meta, name: title || meta.name, description: baseOverview || meta.description }, true);
   const overview = hasArabic(arabic.description) ? arabic.description! : baseOverview;
   const tagline = detail?.tagline ?? "";
   const liveLogo = loading ? detail?.logo : (detail?.logo || meta.logo);

@@ -6,7 +6,7 @@ import { hasArabic, useArabicMeta } from "@/lib/arabic-meta";
 
 export function useLocalizedOverview(meta: Meta): string | undefined {
   const { settings } = useSettings();
-  const arabic = useArabicMeta(meta);
+  const arabic = useArabicMeta(meta, true);
   const isTmdb = meta.id.startsWith("tmdb:");
   // Start from the text the item already carries, so a synopsis never pops
   // in late; swap in the localized one only when it differs.

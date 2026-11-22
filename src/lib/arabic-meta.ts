@@ -19,7 +19,8 @@ import { get as tmdbGet } from "@/lib/providers/tmdb/tmdb-client";
 import { externalToKitsu, kitsuToImdb } from "@/lib/providers/anime-mapping";
 import { safeFetch } from "@/lib/safe-fetch";
 
-type Entry = { n?: string; d?: string; at: number };
+/** n: Arabic name, d: Arabic story, s: story already tried (none to be had). */
+type Entry = { n?: string; d?: string; s?: boolean; at: number };
 
 const STORE_KEY = "harbor.ar-meta.v1";
 const MAX_ENTRIES = 4000;
@@ -161,31 +162,68 @@ function cacheId(meta: Meta): string {
   return `${meta.type}:${meta.id}`;
 }
 
-function resolve(meta: Meta): Promise<void> {
+// Names are short: many go out in one translation request instead of one each.
+type NameJob = { text: string; done: (out: string | null) => void };
+let nameQueue: NameJob[] = [];
+let nameTimer = 0;
+const NAMES_PER_REQUEST = 25;
+
+function translateNameBatched(text: string): Promise<string | null> {
+  return new Promise((done) => {
+    nameQueue.push({ text, done });
+    if (!nameTimer) nameTimer = window.setTimeout(flushNames, 120);
+  });
+}
+
+function flushNames(): void {
+  nameTimer = 0;
+  const jobs = nameQueue;
+  nameQueue = [];
+  for (let i = 0; i < jobs.length; i += NAMES_PER_REQUEST) {
+    const chunk = jobs.slice(i, i + NAMES_PER_REQUEST);
+    void (async () => {
+      const joined = chunk.map((j) => j.text.replace(/\s*\n\s*/g, " ")).join("\n");
+      const out = await googleTranslate(joined, "ar");
+      const lines = out ? out.split("\n") : [];
+      if (lines.length === chunk.length) {
+        chunk.forEach((j, k) => j.done(lines[k].trim() || null));
+        return;
+      }
+      // Lines merged or the service failed: one by one.
+      for (const j of chunk) j.done(out == null ? null : await googleTranslate(j.text, "ar"));
+    })();
+  }
+}
+
+function resolve(meta: Meta, wantStory: boolean): Promise<void> {
   const key = cacheId(meta);
   const pending = inflight.get(key);
   if (pending) return pending;
   const p = new Promise<void>((done) => {
     queue.push(async () => {
       try {
-        const entry: Entry = { at: Date.now() };
-        const fromTmdb = await tmdbArabic(meta).catch(() => null);
-        if (hasArabic(fromTmdb?.n)) entry.n = fromTmdb!.n!.trim();
-        if (hasArabic(fromTmdb?.d)) entry.d = fromTmdb!.d!.trim();
+        const prev = load().get(key);
+        const entry: Entry = { ...(prev ?? {}), at: Date.now() };
+        if (!prev) {
+          const fromTmdb = await tmdbArabic(meta).catch(() => null);
+          if (hasArabic(fromTmdb?.n)) entry.n = fromTmdb!.n!.trim();
+          if (hasArabic(fromTmdb?.d)) entry.d = fromTmdb!.d!.trim();
+        }
         let unreachable = false;
         if (!entry.n && meta.name && !hasArabic(meta.name)) {
-          const n = await googleTranslateToArabic(meta.name);
+          const n = await translateNameBatched(meta.name);
           if (hasArabic(n)) entry.n = n!;
           else if (n == null) unreachable = true;
         }
-        if (!entry.d && meta.description && !hasArabic(meta.description)) {
+        if (wantStory && !entry.d && !entry.s && meta.description && !hasArabic(meta.description)) {
           const d = await googleTranslateToArabic(meta.description);
           if (hasArabic(d)) entry.d = d!;
           else if (d == null) unreachable = true;
+          else entry.s = true;
         }
         // Translation service busy or offline: remember the gap for ten
         // minutes only, then try again, instead of keeping English for a month.
-        if (unreachable && !(entry.n && entry.d)) entry.at = Date.now() - TTL_MS + 10 * 60 * 1000;
+        if (unreachable) entry.at = Date.now() - TTL_MS + 10 * 60 * 1000;
         load().set(key, entry);
         scheduleSave();
         notify(key);
@@ -225,30 +263,44 @@ export function arabicMetaNow(meta: Meta): Meta {
 /** Arabic text for a story shown on its own (detail pages, hero). */
 export async function arabicOverview(meta: Meta): Promise<string | undefined> {
   if (!needsWork(meta)) return meta.description;
-  if (!load().has(cacheId(meta))) await resolve(meta);
+  const e = load().get(cacheId(meta));
+  if (!e || (!e.d && !e.s)) await resolve(meta, true);
   return arabicMetaNow(meta).description;
 }
 
-export function useArabicMeta<T extends Meta | null | undefined>(meta: T): T {
+/**
+ * The meta with its Arabic name (and Arabic story when `withStory`), updating
+ * the component once the lookup finishes. Cards only show names, so they
+ * leave `withStory` off and no story is translated for them.
+ */
+export function useArabicMeta<T extends Meta | null | undefined>(meta: T, withStory = false): T {
   const [, bump] = useState(0);
   const id = meta ? cacheId(meta) : "";
   useEffect(() => {
     if (!meta || !needsWork(meta)) return;
-    const onChange = () => bump((n) => n + 1);
+    const needStory = () => {
+      const e = load().get(id);
+      return withStory && !!meta.description && !hasArabic(meta.description) && !e?.d && !e?.s;
+    };
+    const onChange = () => {
+      bump((n) => n + 1);
+      // A name-only lookup for the same title may have finished first.
+      if (needStory() && !inflight.has(id)) void resolve(meta, true);
+    };
     let set = listeners.get(id);
     if (!set) {
       set = new Set();
       listeners.set(id, set);
     }
     set.add(onChange);
-    if (!load().has(id)) void resolve(meta);
+    if (!load().has(id) || needStory()) void resolve(meta, withStory);
     return () => {
       const s = listeners.get(id);
       s?.delete(onChange);
       if (s && s.size === 0) listeners.delete(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, withStory]);
   if (!meta) return meta;
   return arabicMetaNow(meta) as T;
 }
