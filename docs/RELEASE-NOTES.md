@@ -1,8 +1,21 @@
-# Harbor Frame Generation boost-10
+# Harbor Frame Generation boost-11
 
 Harbor Frame Generation is a Windows build of [Harbor](https://github.com/harborstremio/harbor), a desktop app for watching films and series through Stremio addons, with **Boost** added to its built-in mpv player: AI frame generation, GPU upscaling and a GPU budget that keeps playback smooth. Everything runs inside Harbor; no other program is needed.
 
-## New in boost-10
+## New in boost-11
+
+### Much faster updates
+- **Parallel download.** Updates now download in 8 parallel pieces instead of one stream. On many connections a single download from GitHub crawled along for half an hour or more.
+- **Resumes where it stopped.** Closing Harbor in the middle of an update download no longer throws it away: the next start continues from the pieces already saved.
+- **Smaller installer.** ffmpeg and ffprobe now share one set of libraries instead of shipping two full copies, which makes the installer, and every update, considerably smaller.
+
+### Collections
+- **No more black blink on hover.** Collection cards with an animated hover picture hid their cover before the animation had loaded, so the card flashed black for a moment. The cover now stays until the animation is ready, and the cards are prepared for the hover effect in advance.
+
+### Lighter Arabic titles
+- Card titles are translated 25 at a time in one request instead of one request each, and synopses are only translated where they are shown (title pages, the banner, search), not for every card in every row. Pages fill in Arabic faster and use far less data.
+
+## boost-10
 
 ### Fully Arabic
 - **Arabic only.** The whole interface is now in Arabic, including hundreds of screens and messages that were still in English. The English and Portuguese interface options were removed.
