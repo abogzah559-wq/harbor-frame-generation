@@ -1,10 +1,21 @@
-# Harbor Frame Generation boost-12
+# Harbor Frame Generation boost-13
 
 Harbor Frame Generation is a Windows build of [Harbor](https://github.com/harborstremio/harbor), a desktop app for watching films and series through Stremio addons, with **Boost** added to its built-in mpv player: AI frame generation, GPU upscaling and a GPU budget that keeps playback smooth. Everything runs inside Harbor; no other program is needed.
 
-> **One-time manual step:** if you are on boost-11 or older, download and run the installer below once. Earlier versions could download an update but often failed to install it. From boost-12 on, updates install by themselves.
+> If you are on boost-11 or older, install this release once by hand; from boost-12 on, updates install by themselves.
 
-## New in boost-12
+## New in boost-13
+
+### A cleaner source list
+- **Only real sources.** Rows that are not videos are gone: recommendation lists ("Watch Next"), rating summaries, "join our Discord", "sync your debrid library", subscription notices, and links that only open a web page or YouTube.
+- **Instant sources first.** Sources that start at once (cached on your debrid, marked ⚡, [+RD] or "instant") now always sit at the top, whatever your addon order.
+- **Debrid links get time to start.** Debrid links can take 20-30 seconds to resolve on the debrid side; Harbor gave up after 18 seconds and bounced back to the list. It now waits up to 40 seconds.
+- **No Torrentio-with-debrid source is added automatically anymore.** Real-Debrid refuses many requests coming from Torrentio's servers and plays an "Access denied" video instead. Plain Torrentio stays, and its torrents play through your own debrid key from your own connection.
+
+### Arabic
+- **Continue Watching** cards now show Arabic titles too.
+
+## boost-12
 
 ### Updates install for real
 - Downloaded updates now install reliably. Before, a hidden helper script was supposed to run the installer after Harbor closed, but it was often stopped first, so the same update downloaded again and again and never installed. The installer now runs directly when Harbor closes, or right away with **Restart now** (Harbor reopens when it is done).
